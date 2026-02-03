@@ -260,17 +260,17 @@ export class OperisApp extends LitElement {
     this.chatMessages = [...this.chatMessages, { role: "user", content: userMessage }];
 
     try {
-      // Call Operis API for chat (Operis routes to user's gateway)
       const token = this.settings.authToken;
       if (!token) {
         throw new Error(this.lang === "vi" ? "Vui lòng đăng nhập" : "Please login first");
       }
 
-      const response = await fetch(`${API_CONFIG.operisApiUrl}/chat`, {
+      // Use streaming endpoint with SSE
+      const response = await fetch(`${API_CONFIG.operisApiUrl}/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ message: userMessage }),
       });
@@ -280,17 +280,68 @@ export class OperisApp extends LitElement {
         throw new Error(error.error || `HTTP ${response.status}`);
       }
 
-      const data = await response.json();
-      const assistantContent = data.content?.[0]?.text || data.content || "No response";
+      if (!response.body) {
+        throw new Error("No response body");
+      }
 
-      this.chatMessages = [
-        ...this.chatMessages,
-        { role: "assistant", content: assistantContent },
-      ];
+      // Add empty assistant message for streaming
+      const assistantIndex = this.chatMessages.length;
+      this.chatMessages = [...this.chatMessages, { role: "assistant", content: "" }];
+
+      // Read SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            // Event type line - read next data line
+            continue;
+          }
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6).trim();
+            if (!data) continue;
+
+            try {
+              const parsed = JSON.parse(data);
+
+              // Handle content delta
+              if (parsed.content !== undefined) {
+                const updated = [...this.chatMessages];
+                updated[assistantIndex] = {
+                  role: "assistant",
+                  content: parsed.content,
+                };
+                this.chatMessages = updated;
+              }
+
+              // Handle error
+              if (parsed.error) {
+                const updated = [...this.chatMessages];
+                updated[assistantIndex] = {
+                  role: "assistant",
+                  content: `❌ ${parsed.error}`,
+                };
+                this.chatMessages = updated;
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       this.chatMessages = [
-        ...this.chatMessages,
+        ...this.chatMessages.filter((m) => m.content !== ""),
         { role: "assistant", content: `❌ Error: ${errorMsg}` },
       ];
     } finally {

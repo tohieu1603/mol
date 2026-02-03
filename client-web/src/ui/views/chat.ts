@@ -533,31 +533,25 @@ export function renderChat(props: ChatProps) {
             <!-- Chat Messages -->
             <div class="gc-messages">
               ${messages.map(
-                (msg) => html`
+                (msg, idx) => html`
                   <div class="gc-message gc-message--${msg.role}">
                     <div class="gc-avatar gc-avatar--${msg.role}">
                       ${msg.role === "user" ? icons.user : icons.sparkles}
                     </div>
-                    <div class="gc-bubble">${msg.content}</div>
+                    <div class="gc-bubble">
+                      ${msg.role === "assistant" && msg.content === "" && sending && idx === messages.length - 1
+                        ? html`
+                            <div class="gc-typing">
+                              <span class="gc-typing-dot"></span>
+                              <span class="gc-typing-dot"></span>
+                              <span class="gc-typing-dot"></span>
+                            </div>
+                          `
+                        : msg.content}
+                    </div>
                   </div>
                 `,
               )}
-              ${sending
-                ? html`
-                    <div class="gc-message gc-message--assistant">
-                      <div class="gc-avatar gc-avatar--assistant">
-                        ${icons.sparkles}
-                      </div>
-                      <div class="gc-bubble">
-                        <div class="gc-typing">
-                          <span class="gc-typing-dot"></span>
-                          <span class="gc-typing-dot"></span>
-                          <span class="gc-typing-dot"></span>
-                        </div>
-                      </div>
-                    </div>
-                  `
-                : nothing}
             </div>
 
             <!-- Bottom Input -->

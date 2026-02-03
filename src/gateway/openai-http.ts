@@ -234,6 +234,7 @@ export async function handleOpenAiHttpRequest(
 
       // Get real usage from session transcript
       let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+      console.log("[openai-http] Getting usage from session:", sessionKey);
       try {
         const storePath = resolveStorePath();
         const store = loadSessionStore(storePath);
@@ -243,14 +244,17 @@ export async function handleOpenAiHttpRequest(
           ? path.join(transcriptsDir, `${session.sessionId}.jsonl`)
           : null;
 
+        console.log("[openai-http] Transcript file:", transcriptFile);
         if (transcriptFile && fs.existsSync(transcriptFile)) {
           const lines = fs.readFileSync(transcriptFile, "utf-8").trim().split("\n");
+          console.log("[openai-http] Transcript lines:", lines.length);
           // Get last assistant message with usage
           for (let i = lines.length - 1; i >= 0; i--) {
             try {
               const entry = JSON.parse(lines[i]);
               if (entry.role === "assistant" && entry.usage) {
                 const u = entry.usage;
+                console.log("[openai-http] Found usage:", JSON.stringify(u));
                 usage = {
                   prompt_tokens: (u.input ?? 0) + (u.cacheRead ?? 0),
                   completion_tokens: u.output ?? 0,
@@ -262,9 +266,11 @@ export async function handleOpenAiHttpRequest(
               /* skip invalid lines */
             }
           }
+        } else {
+          console.log("[openai-http] Transcript file not found");
         }
-      } catch {
-        // Ignore errors, use default usage
+      } catch (err) {
+        console.log("[openai-http] Error getting usage:", err);
       }
 
       sendJson(res, 200, {
