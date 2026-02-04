@@ -14,7 +14,10 @@ type GatewayRunSignalAction = "stop" | "restart";
 export async function runGatewayLoop(params: {
   start: () => Promise<Awaited<ReturnType<typeof startGatewayServer>>>;
   runtime: typeof defaultRuntime;
+<<<<<<< HEAD
   onFirstStart?: () => void;
+=======
+>>>>>>> origin/main
 }) {
   const lock = await acquireGatewayLock();
   let server: Awaited<ReturnType<typeof startGatewayServer>> | null = null;
@@ -91,6 +94,7 @@ export async function runGatewayLoop(params: {
   try {
     // Keep process alive; SIGUSR1 triggers an in-process restart (no supervisor required).
     // SIGTERM/SIGINT still exit after a graceful shutdown.
+<<<<<<< HEAD
     let isFirstStart = true;
     // eslint-disable-next-line no-constant-condition
     while (true) {
@@ -99,6 +103,11 @@ export async function runGatewayLoop(params: {
         isFirstStart = false;
         params.onFirstStart?.();
       }
+=======
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      server = await params.start();
+>>>>>>> origin/main
       await new Promise<void>((resolve) => {
         restartResolver = resolve;
       });

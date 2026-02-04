@@ -289,6 +289,12 @@ export interface User {
   is_active: boolean;
   last_active_at: Date | null;
   token_balance: number;
+<<<<<<< HEAD
+=======
+  // Custom gateway for AI calls
+  gateway_url: string | null;
+  gateway_token: string | null;
+>>>>>>> origin/main
   created_at: Date;
   updated_at: Date;
 }
@@ -311,6 +317,11 @@ export interface UserUpdate {
   is_active?: boolean;
   last_active_at?: Date;
   token_balance?: number;
+<<<<<<< HEAD
+=======
+  gateway_url?: string | null;
+  gateway_token?: string | null;
+>>>>>>> origin/main
 }
 
 // ============================================================================

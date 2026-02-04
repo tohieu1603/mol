@@ -108,7 +108,11 @@ Refresh Token: 7d expiry, HttpOnly cookie
 
 ```
 sk_live_<32-char-random>
+<<<<<<< HEAD
 Example: sk_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+=======
+Example: sk_live_YOUR_KEY_HERE
+>>>>>>> origin/main
 ```
 
 ## Success Criteria

@@ -6,7 +6,10 @@ export type EveryUnit = "minutes" | "hours" | "days";
 export type SessionTarget = "main" | "isolated";
 export type WakeMode = "next-heartbeat" | "now";
 export type PayloadKind = "systemEvent" | "agentTurn";
+<<<<<<< HEAD
 export type DeliveryMode = "announce" | "none";
+=======
+>>>>>>> origin/main
 
 export type WorkflowSchedule = {
   kind: ScheduleKind;
@@ -33,18 +36,26 @@ export type Workflow = {
   payloadKind?: PayloadKind;
   timeout?: number;
   lastRunAt?: number;
+<<<<<<< HEAD
   lastRunStatus?: "success" | "error" | "running" | "ok";
   nextRunAt?: number;
   createdAtMs?: number;
   updatedAtMs?: number;
   agentId?: string;
+=======
+  lastRunStatus?: "success" | "error" | "running";
+  nextRunAt?: number;
+>>>>>>> origin/main
 };
 
 export type WorkflowFormState = {
   name: string;
   description: string;
   enabled: boolean;
+<<<<<<< HEAD
   agentId: string;
+=======
+>>>>>>> origin/main
   // Schedule
   scheduleKind: ScheduleKind;
   everyAmount: number;
@@ -58,10 +69,13 @@ export type WorkflowFormState = {
   payloadKind: PayloadKind;
   timeout: number;
   postToMainPrefix: string;
+<<<<<<< HEAD
   // Delivery (for agentTurn with isolated session)
   deliveryMode: DeliveryMode;
   deliveryChannel: string;
   deliveryTo: string;
+=======
+>>>>>>> origin/main
   // Task
   prompt: string;
   notifyMe: boolean;
@@ -71,28 +85,39 @@ export const DEFAULT_WORKFLOW_FORM: WorkflowFormState = {
   name: "",
   description: "",
   enabled: true,
+<<<<<<< HEAD
   agentId: "",
+=======
+>>>>>>> origin/main
   scheduleKind: "every",
   everyAmount: 1,
   everyUnit: "days",
   atDatetime: "",
   cronExpr: "0 9 * * *",
   cronTz: "",
+<<<<<<< HEAD
   // Note: "main" session requires payload.kind="systemEvent"
   // "isolated" allows payload.kind="agentTurn" (send message to AI)
   sessionTarget: "isolated",
+=======
+  sessionTarget: "main",
+>>>>>>> origin/main
   wakeMode: "now",
   payloadKind: "agentTurn",
   timeout: 300,
   postToMainPrefix: "",
+<<<<<<< HEAD
   // Delivery settings (for isolated + agentTurn)
   deliveryMode: "announce",
   deliveryChannel: "last",
   deliveryTo: "",
+=======
+>>>>>>> origin/main
   prompt: "",
   notifyMe: false,
 };
 
+<<<<<<< HEAD
 // Validate form before conversion
 // Gateway rules: main→systemEvent only, isolated→agentTurn only
 export function validateWorkflowForm(form: WorkflowFormState): string | null {
@@ -123,6 +148,14 @@ export function formToCronPayload(form: WorkflowFormState) {
     // Ensure everyAmount is at least 1
     const amount = Math.max(1, form.everyAmount || 1);
     let everyMs = amount;
+=======
+// Convert form state to Cron API format
+export function formToCronPayload(form: WorkflowFormState) {
+  let schedule: { kind: string; everyMs?: number; atMs?: number; expr?: string; tz?: string };
+
+  if (form.scheduleKind === "every") {
+    let everyMs = form.everyAmount;
+>>>>>>> origin/main
     switch (form.everyUnit) {
       case "minutes":
         everyMs *= 60 * 1000;
@@ -139,6 +172,7 @@ export function formToCronPayload(form: WorkflowFormState) {
     const atMs = form.atDatetime ? new Date(form.atDatetime).getTime() : Date.now();
     schedule = { kind: "at", atMs };
   } else {
+<<<<<<< HEAD
     schedule = { kind: "cron", expr: form.cronExpr.trim() };
     if (form.cronTz?.trim()) schedule.tz = form.cronTz.trim();
   }
@@ -170,6 +204,25 @@ export function formToCronPayload(form: WorkflowFormState) {
   // Build result matching CronAddParamsSchema
   const result: Record<string, unknown> = {
     name: form.name.trim(),
+=======
+    schedule = { kind: "cron", expr: form.cronExpr };
+    if (form.cronTz) schedule.tz = form.cronTz;
+  }
+
+  // Build payload based on payloadKind
+  const payload: Record<string, unknown> = { kind: form.payloadKind };
+  if (form.payloadKind === "agentTurn") {
+    payload.message = form.prompt.trim();
+    payload.deliver = form.notifyMe;
+  } else {
+    // systemEvent
+    payload.event = form.prompt.trim();
+  }
+
+  const result: Record<string, unknown> = {
+    name: form.name.trim(),
+    description: form.description.trim() || undefined,
+>>>>>>> origin/main
     enabled: form.enabled,
     schedule,
     sessionTarget: form.sessionTarget,
@@ -177,6 +230,7 @@ export function formToCronPayload(form: WorkflowFormState) {
     payload,
   };
 
+<<<<<<< HEAD
   // Only add description if non-empty
   const desc = form.description.trim();
   if (desc) {
@@ -209,11 +263,22 @@ export function formToCronPayload(form: WorkflowFormState) {
     result.isolation = {
       postToMainPrefix: form.postToMainPrefix.trim(),
     };
+=======
+  // Add timeout if set
+  if (form.timeout > 0) {
+    result.timeoutSec = form.timeout;
+  }
+
+  // Add postToMainPrefix for isolated sessions
+  if (form.sessionTarget === "isolated" && form.postToMainPrefix.trim()) {
+    result.postToMainPrefix = form.postToMainPrefix.trim();
+>>>>>>> origin/main
   }
 
   return result;
 }
 
+<<<<<<< HEAD
 // Vietnamese unit labels
 const UNIT_LABELS_VI: Record<EveryUnit, { singular: string; plural: string }> = {
   minutes: { singular: "phút", plural: "phút" },
@@ -224,11 +289,17 @@ const UNIT_LABELS_VI: Record<EveryUnit, { singular: string; plural: string }> = 
 // Format schedule for display (Vietnamese)
 export function formatSchedule(schedule: WorkflowSchedule): string {
   if (!schedule) return "Chưa đặt lịch";
+=======
+// Format schedule for display
+export function formatSchedule(schedule: WorkflowSchedule): string {
+  if (!schedule) return "No schedule";
+>>>>>>> origin/main
 
   switch (schedule.kind) {
     case "every": {
       const amount = schedule.everyAmount ?? 1;
       const unit = schedule.everyUnit ?? "days";
+<<<<<<< HEAD
       const unitLabel = UNIT_LABELS_VI[unit]?.plural ?? unit;
       return `Mỗi ${amount} ${unitLabel}`;
     }
@@ -242,6 +313,21 @@ export function formatSchedule(schedule: WorkflowSchedule): string {
     }
     default:
       return "Không xác định";
+=======
+      const unitLabel = amount === 1 ? unit.slice(0, -1) : unit;
+      return `Every ${amount} ${unitLabel}`;
+    }
+    case "at": {
+      if (!schedule.atDatetime) return "One-time run";
+      const date = new Date(schedule.atDatetime);
+      return `At ${date.toLocaleString()}`;
+    }
+    case "cron": {
+      return schedule.cronExpr ? `Cron: ${schedule.cronExpr}` : "Custom schedule";
+    }
+    default:
+      return "Unknown schedule";
+>>>>>>> origin/main
   }
 }
 

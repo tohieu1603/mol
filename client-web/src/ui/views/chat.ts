@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+<<<<<<< HEAD
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { marked } from "marked";
 import { icons } from "../icons";
@@ -30,11 +31,24 @@ export interface ChatProps {
   username?: string;
   botName?: string;
   streamingText?: string;
+=======
+import { icons } from "../icons";
+import { t, type Language } from "../i18n";
+
+interface ChatProps {
+  lang: Language;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  draft: string;
+  sending: boolean;
+  isLoggedIn: boolean;
+  username?: string;
+>>>>>>> origin/main
   onDraftChange: (value: string) => void;
   onSend: () => void;
   onLoginClick: () => void;
 }
 
+<<<<<<< HEAD
 function formatTime(timestamp?: string | Date): string {
   if (!timestamp) return "";
   const date = typeof timestamp === "string" ? new Date(timestamp) : timestamp;
@@ -97,12 +111,36 @@ export function renderChat(props: ChatProps) {
     username,
     botName = "Operis",
     streamingText = "",
+=======
+function getSuggestions(lang: Language) {
+  return [
+    { icon: icons.image, label: t(lang, "chatSuggestionImage"), prompt: lang === "vi" ? "Tạo hình ảnh về" : "Create an image of" },
+    { icon: icons.pencil, label: t(lang, "chatSuggestionWrite"), prompt: lang === "vi" ? "Giúp tôi viết" : "Help me write" },
+    { icon: icons.graduationCap, label: t(lang, "chatSuggestionLearn"), prompt: lang === "vi" ? "Dạy tôi về" : "Teach me about" },
+    { icon: icons.coffee, label: t(lang, "chatSuggestionDay"), prompt: lang === "vi" ? "Giúp tôi lên kế hoạch" : "Help me plan my day" },
+  ];
+}
+
+export function renderChat(props: ChatProps) {
+  const {
+    lang,
+    messages,
+    draft,
+    sending,
+    isLoggedIn,
+    username,
+>>>>>>> origin/main
     onDraftChange,
     onSend,
     onLoginClick,
   } = props;
   const isEmpty = messages.length === 0;
+<<<<<<< HEAD
   const displayName = username || "Bạn";
+=======
+  const displayName = username || (lang === "vi" ? "bạn" : "there");
+  const suggestions = getSuggestions(lang);
+>>>>>>> origin/main
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -110,11 +148,14 @@ export function renderChat(props: ChatProps) {
       if (!isLoggedIn) {
         onLoginClick();
       } else if (draft.trim()) {
+<<<<<<< HEAD
         // Reset textarea height after sending
         const textarea = e.target as HTMLTextAreaElement;
         setTimeout(() => {
           textarea.style.height = "auto";
         }, 0);
+=======
+>>>>>>> origin/main
         onSend();
       }
     }
@@ -134,6 +175,7 @@ export function renderChat(props: ChatProps) {
 
   return html`
     <style>
+<<<<<<< HEAD
       /* Full-width Chat Container - fill parent completely */
       .gc-wrapper {
         position: absolute;
@@ -145,6 +187,15 @@ export function renderChat(props: ChatProps) {
         flex-direction: column;
         background: var(--bg);
         overflow: hidden;
+=======
+      /* Full-width Chat Container - offset parent padding */
+      .gc-wrapper {
+        margin: -24px -32px;
+        height: calc(100% + 48px);
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+>>>>>>> origin/main
       }
 
       /* Empty State - Gemini Style */
@@ -202,7 +253,10 @@ export function renderChat(props: ChatProps) {
       .gc-input-wrap {
         width: 100%;
         max-width: 680px;
+<<<<<<< HEAD
         max-height: 250px;
+=======
+>>>>>>> origin/main
         margin-bottom: 24px;
         padding: 0 16px;
         box-sizing: border-box;
@@ -212,12 +266,18 @@ export function renderChat(props: ChatProps) {
         display: flex;
         flex-direction: column;
         gap: 8px;
+<<<<<<< HEAD
         max-height: 250px;
+=======
+>>>>>>> origin/main
         padding: 16px 16px 12px;
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 24px;
+<<<<<<< HEAD
         box-sizing: border-box;
+=======
+>>>>>>> origin/main
         transition:
           border-color 0.2s ease,
           box-shadow 0.2s ease;
@@ -229,10 +289,15 @@ export function renderChat(props: ChatProps) {
 
       .gc-input {
         width: 100%;
+<<<<<<< HEAD
         min-height: 24px;
         max-height: 178px;
         padding: 0;
         padding-right: 4px;
+=======
+        height: 24px;
+        padding: 0;
+>>>>>>> origin/main
         font-size: 16px;
         font-family: inherit;
         background: transparent;
@@ -241,13 +306,17 @@ export function renderChat(props: ChatProps) {
         box-shadow: none !important;
         color: var(--text);
         line-height: 1.5;
+<<<<<<< HEAD
         resize: none;
         overflow-y: auto;
         overflow-x: hidden;
+=======
+>>>>>>> origin/main
         -webkit-appearance: none;
         -moz-appearance: none;
         appearance: none;
       }
+<<<<<<< HEAD
       .gc-input::-webkit-scrollbar {
         width: 10px;
         height: 10px;
@@ -262,6 +331,8 @@ export function renderChat(props: ChatProps) {
       .gc-input::-webkit-scrollbar-thumb:hover {
         background: var(--border-strong);
       }
+=======
+>>>>>>> origin/main
       .gc-input:focus {
         border: none !important;
         outline: none !important;
@@ -388,6 +459,7 @@ export function renderChat(props: ChatProps) {
         stroke-width: 2;
       }
 
+<<<<<<< HEAD
       /* Messages Area with Fade Effect */
       .gc-messages-container {
         flex: 1;
@@ -401,10 +473,18 @@ export function renderChat(props: ChatProps) {
         padding: 24px;
         padding-top: 24px;
         padding-bottom: 24px;
+=======
+      /* Messages Area */
+      .gc-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+>>>>>>> origin/main
         display: flex;
         flex-direction: column;
         gap: 24px;
       }
+<<<<<<< HEAD
       .gc-messages::-webkit-scrollbar {
         width: 10px;
       }
@@ -418,6 +498,8 @@ export function renderChat(props: ChatProps) {
       .gc-messages::-webkit-scrollbar-thumb:hover {
         background: var(--border-strong);
       }
+=======
+>>>>>>> origin/main
 
       .gc-message {
         display: flex;
@@ -472,6 +554,7 @@ export function renderChat(props: ChatProps) {
         stroke: white;
       }
 
+<<<<<<< HEAD
       .gc-content {
         display: flex;
         flex-direction: column;
@@ -503,16 +586,21 @@ export function renderChat(props: ChatProps) {
         justify-content: flex-end;
       }
 
+=======
+>>>>>>> origin/main
       .gc-bubble {
         padding: 14px 18px;
         border-radius: 20px;
         font-size: 15px;
         line-height: 1.6;
       }
+<<<<<<< HEAD
       .gc-bubble > p {
         margin-top: 8px;
         margin-bottom: 8px;
       }
+=======
+>>>>>>> origin/main
       .gc-message--user .gc-bubble {
         background: var(--accent);
         color: var(--accent-foreground);
@@ -525,6 +613,7 @@ export function renderChat(props: ChatProps) {
         border-bottom-left-radius: 6px;
       }
 
+<<<<<<< HEAD
       /* Links in chat bubbles */
       .gc-bubble a {
         text-decoration: underline;
@@ -552,6 +641,19 @@ export function renderChat(props: ChatProps) {
         background: var(--muted);
         border-radius: 50%;
         animation: gc-typing 1.6s ease-in-out infinite;
+=======
+      .gc-typing {
+        display: flex;
+        gap: 4px;
+        padding: 8px 0;
+      }
+      .gc-typing-dot {
+        width: 8px;
+        height: 8px;
+        background: var(--muted);
+        border-radius: 50%;
+        animation: gc-typing 1.4s infinite;
+>>>>>>> origin/main
       }
       .gc-typing-dot:nth-child(2) {
         animation-delay: 0.2s;
@@ -560,6 +662,7 @@ export function renderChat(props: ChatProps) {
         animation-delay: 0.4s;
       }
       @keyframes gc-typing {
+<<<<<<< HEAD
         0%, 80%, 100% { opacity: 0.3; }
         40% { opacity: 1; }
       }
@@ -587,6 +690,19 @@ export function renderChat(props: ChatProps) {
         padding: 16px 24px 24px;
         background: var(--bg);
       }
+=======
+        0%,
+        60%,
+        100% {
+          transform: translateY(0);
+        }
+        30% {
+          transform: translateY(-8px);
+        }
+      }
+
+      /* Bottom Input */
+>>>>>>> origin/main
 
       .gc-input-bottom .gc-input-wrap {
         max-width: 800px;
@@ -601,6 +717,7 @@ export function renderChat(props: ChatProps) {
         margin-top: 12px;
       }
 
+<<<<<<< HEAD
       /* Loading Skeleton */
       .gc-loading {
         flex: 1;
@@ -658,6 +775,8 @@ export function renderChat(props: ChatProps) {
         border-radius: 24px;
       }
 
+=======
+>>>>>>> origin/main
       /* Responsive */
       @media (max-width: 768px) {
         .gc-wrapper {
@@ -693,6 +812,7 @@ export function renderChat(props: ChatProps) {
     </style>
 
     <div class="gc-wrapper">
+<<<<<<< HEAD
       ${loading
         ? html`
             <!-- Loading Skeleton -->
@@ -914,6 +1034,167 @@ export function renderChat(props: ChatProps) {
                 <p class="gc-disclaimer">${t("chatDisclaimer")}</p>
               </div>
             `}
+=======
+      ${isEmpty
+        ? html`
+            <!-- Empty State -->
+            <div class="gc-welcome">
+              <div class="gc-greeting">
+                <span class="gc-greeting-icon">${icons.sparkles}</span>
+                <span class="gc-greeting-text">${t(lang, "chatGreeting")}, ${displayName}!</span>
+              </div>
+              <h1 class="gc-subtitle">${t(lang, "chatSubtitle")}</h1>
+
+              <div class="gc-input-wrap">
+                <div class="gc-input-box">
+                  <input
+                    type="text"
+                    class="gc-input"
+                    placeholder="${t(lang, "chatPlaceholder")}"
+                    .value=${draft}
+                    @input=${(e: InputEvent) =>
+                      onDraftChange((e.target as HTMLInputElement).value)}
+                    @keydown=${handleKeyDown}
+                    ?disabled=${sending}
+                  />
+                  <div class="gc-input-actions">
+                    <div class="gc-actions-left">
+                      <button
+                        type="button"
+                        class="gc-action-btn"
+                        title="${lang === "vi" ? "Thêm tệp" : "Add attachment"}"
+                      >
+                        ${icons.plus}
+                      </button>
+                      <button
+                        type="button"
+                        class="gc-action-btn"
+                        title="${lang === "vi" ? "Thêm ảnh" : "Add image"}"
+                      >
+                        ${icons.image}
+                      </button>
+                    </div>
+                    <div class="gc-actions-right">
+                      <button
+                        type="button"
+                        class="gc-action-btn"
+                        title="${lang === "vi" ? "Nhập giọng nói" : "Voice input"}"
+                      >
+                        ${icons.mic}
+                      </button>
+                      <button
+                        type="button"
+                        class="gc-send-btn"
+                        @click=${handleSendClick}
+                        ?disabled=${!draft.trim() || sending}
+                        title=${isLoggedIn ? t(lang, "chatSend") : t(lang, "chatSignIn")}
+                      >
+                        ${icons.arrowUp}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="gc-suggestions">
+                ${suggestions.map(
+                  (s) => html`
+                    <button
+                      type="button"
+                      class="gc-suggestion"
+                      @click=${() => handleSuggestionClick(s.prompt)}
+                    >
+                      <span class="gc-suggestion-icon">${s.icon}</span>
+                      ${s.label}
+                    </button>
+                  `,
+                )}
+              </div>
+            </div>
+          `
+        : html`
+            <!-- Chat Messages -->
+            <div class="gc-messages">
+              ${messages.map(
+                (msg, idx) => html`
+                  <div class="gc-message gc-message--${msg.role}">
+                    <div class="gc-avatar gc-avatar--${msg.role}">
+                      ${msg.role === "user" ? icons.user : icons.sparkles}
+                    </div>
+                    <div class="gc-bubble">
+                      ${msg.role === "assistant" && msg.content === "" && sending && idx === messages.length - 1
+                        ? html`
+                            <div class="gc-typing">
+                              <span class="gc-typing-dot"></span>
+                              <span class="gc-typing-dot"></span>
+                              <span class="gc-typing-dot"></span>
+                            </div>
+                          `
+                        : msg.content}
+                    </div>
+                  </div>
+                `,
+              )}
+            </div>
+
+            <!-- Bottom Input -->
+            <div class="gc-input-bottom">
+              <div class="gc-input-wrap">
+                <div class="gc-input-box">
+                  <input
+                    type="text"
+                    class="gc-input"
+                    placeholder="${t(lang, "chatPlaceholder")}"
+                    .value=${draft}
+                    @input=${(e: InputEvent) =>
+                      onDraftChange((e.target as HTMLInputElement).value)}
+                    @keydown=${handleKeyDown}
+                    ?disabled=${sending}
+                  />
+                  <div class="gc-input-actions">
+                    <div class="gc-actions-left">
+                      <button
+                        type="button"
+                        class="gc-action-btn"
+                        title="${lang === "vi" ? "Thêm tệp" : "Add attachment"}"
+                      >
+                        ${icons.plus}
+                      </button>
+                      <button
+                        type="button"
+                        class="gc-action-btn"
+                        title="${lang === "vi" ? "Thêm ảnh" : "Add image"}"
+                      >
+                        ${icons.image}
+                      </button>
+                    </div>
+                    <div class="gc-actions-right">
+                      <button
+                        type="button"
+                        class="gc-action-btn"
+                        title="${lang === "vi" ? "Nhập giọng nói" : "Voice input"}"
+                      >
+                        ${icons.mic}
+                      </button>
+                      <button
+                        type="button"
+                        class="gc-send-btn"
+                        @click=${handleSendClick}
+                        ?disabled=${!draft.trim() || sending}
+                        title=${isLoggedIn ? t(lang, "chatSend") : t(lang, "chatSignIn")}
+                      >
+                        ${icons.arrowUp}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <p class="gc-disclaimer">
+                ${t(lang, "chatDisclaimer")}
+              </p>
+            </div>
+          `}
+>>>>>>> origin/main
     </div>
   `;
 }

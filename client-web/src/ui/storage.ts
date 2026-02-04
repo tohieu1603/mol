@@ -1,19 +1,40 @@
 import type { ThemeMode } from "./theme";
+<<<<<<< HEAD
 
 export interface ClientSettings {
   theme: ThemeMode;
   navCollapsed: boolean;
   isLoggedIn: boolean;
   username: string | null;
+=======
+import type { Language } from "./i18n";
+import { getDefaultLanguage } from "./i18n";
+
+export interface ClientSettings {
+  theme: ThemeMode;
+  language: Language;
+  navCollapsed: boolean;
+  isLoggedIn: boolean;
+  username: string | null;
+  authToken: string | null;  // JWT token from login
+>>>>>>> origin/main
 }
 
 const STORAGE_KEY = "operis-client-settings";
 
 const DEFAULT_SETTINGS: ClientSettings = {
   theme: "system",
+<<<<<<< HEAD
   navCollapsed: false,
   isLoggedIn: false,
   username: null,
+=======
+  language: getDefaultLanguage(),
+  navCollapsed: false,
+  isLoggedIn: false,
+  username: null,
+  authToken: null,
+>>>>>>> origin/main
 };
 
 export function loadSettings(): ClientSettings {
