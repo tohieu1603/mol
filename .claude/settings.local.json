@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -d */ \"k:\\\\operisagent\")",
+      "Bash(pnpm add:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm --prefix \"k:\\\\operisagent\\\\client-web\" run build)",
+      "Bash(curl:*)",
+      "Bash(psql:*)",
+      "Bash(pnpm build:*)",
+      "Bash(npx tsx:*)",
+      "Bash(node -e:*)",
+      "Bash(net start:*)",
+      "Bash(docker:*)",
+      "Bash(where:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(pnpm exec tsc:*)",
+      "WebFetch(domain:dribbble.com)",
+      "Bash(pnpm --dir \"k:/operisagent/client-web\" add:*)",
+      "Bash(pnpm --prefix \"k:/operisagent/client-web\" build:*)",
+      "Bash(pushd:*)",
+      "Bash(popd:*)",
+      "Bash(cmd /c \"cd /d k:\\\\operisagent\\\\client-web && npx tsc --noEmit 2>&1\")",
+      "Bash(npx vite build)"
+    ]
+  }
+}
