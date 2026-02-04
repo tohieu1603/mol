@@ -238,11 +238,16 @@ export function createBrowserTool(opts?: {
     ].join(" "),
     parameters: BrowserToolSchema,
     execute: async (_toolCallId, args) => {
+<<<<<<< HEAD
+      const params = args as Record<string, unknown>;
+      const action = readStringParam(params, "action", { required: true });
+=======
       console.log("[browser-tool] DEBUG - Raw args received:", JSON.stringify(args, null, 2));
       const params = args as Record<string, unknown>;
       console.log("[browser-tool] DEBUG - params keys:", Object.keys(params));
       const action = readStringParam(params, "action", { required: true });
       console.log("[browser-tool] DEBUG - action:", action, "targetUrl:", params.targetUrl);
+>>>>>>> origin/main
       const profile = readStringParam(params, "profile");
       const requestedNode = readStringParam(params, "node");
       let target = readStringParam(params, "target") as "sandbox" | "host" | "node" | undefined;

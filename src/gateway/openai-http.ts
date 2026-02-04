@@ -234,7 +234,10 @@ export async function handleOpenAiHttpRequest(
 
       // Get real usage from session transcript
       let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+<<<<<<< HEAD
+=======
       console.log("[openai-http] Getting usage from session:", sessionKey);
+>>>>>>> origin/main
       try {
         const storePath = resolveStorePath();
         const store = loadSessionStore(storePath);
@@ -244,17 +247,25 @@ export async function handleOpenAiHttpRequest(
           ? path.join(transcriptsDir, `${session.sessionId}.jsonl`)
           : null;
 
+<<<<<<< HEAD
+        if (transcriptFile && fs.existsSync(transcriptFile)) {
+          const lines = fs.readFileSync(transcriptFile, "utf-8").trim().split("\n");
+=======
         console.log("[openai-http] Transcript file:", transcriptFile);
         if (transcriptFile && fs.existsSync(transcriptFile)) {
           const lines = fs.readFileSync(transcriptFile, "utf-8").trim().split("\n");
           console.log("[openai-http] Transcript lines:", lines.length);
+>>>>>>> origin/main
           // Get last assistant message with usage
           for (let i = lines.length - 1; i >= 0; i--) {
             try {
               const entry = JSON.parse(lines[i]);
               if (entry.role === "assistant" && entry.usage) {
                 const u = entry.usage;
+<<<<<<< HEAD
+=======
                 console.log("[openai-http] Found usage:", JSON.stringify(u));
+>>>>>>> origin/main
                 usage = {
                   prompt_tokens: (u.input ?? 0) + (u.cacheRead ?? 0),
                   completion_tokens: u.output ?? 0,
@@ -266,11 +277,17 @@ export async function handleOpenAiHttpRequest(
               /* skip invalid lines */
             }
           }
+<<<<<<< HEAD
+        }
+      } catch {
+        // Ignore errors, use default usage
+=======
         } else {
           console.log("[openai-http] Transcript file not found");
         }
       } catch (err) {
         console.log("[openai-http] Error getting usage:", err);
+>>>>>>> origin/main
       }
 
       sendJson(res, 200, {

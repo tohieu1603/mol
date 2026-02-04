@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+import { exec } from "node:child_process";
+=======
+>>>>>>> origin/main
 import fs from "node:fs";
 
 import type { Command } from "commander";
@@ -48,6 +52,10 @@ type GatewayRunOpts = {
   rawStreamPath?: unknown;
   dev?: boolean;
   reset?: boolean;
+<<<<<<< HEAD
+  open?: boolean;
+=======
+>>>>>>> origin/main
 };
 
 const gatewayLog = createSubsystemLogger("gateway");
@@ -256,6 +264,25 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     return;
   }
 
+<<<<<<< HEAD
+  const openBrowser = opts.open
+    ? () => {
+        const url = `http://localhost:${port}`;
+        gatewayLog.info(`Opening browser: ${url}`);
+        const cmd =
+          process.platform === "win32"
+            ? `start "" "${url}"`
+            : process.platform === "darwin"
+              ? `open "${url}"`
+              : `xdg-open "${url}"`;
+        exec(cmd, (err) => {
+          if (err) gatewayLog.warn(`Failed to open browser: ${err.message}`);
+        });
+      }
+    : undefined;
+
+=======
+>>>>>>> origin/main
   try {
     await runGatewayLoop({
       runtime: defaultRuntime,
@@ -278,6 +305,10 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
                 }
               : undefined,
         }),
+<<<<<<< HEAD
+      onFirstStart: openBrowser,
+=======
+>>>>>>> origin/main
     });
   } catch (err) {
     if (
@@ -348,6 +379,11 @@ export function addGatewayRunCommand(cmd: Command): Command {
     .option("--compact", 'Alias for "--ws-log compact"', false)
     .option("--raw-stream", "Log raw model stream events to jsonl", false)
     .option("--raw-stream-path <path>", "Raw stream jsonl path")
+<<<<<<< HEAD
+    .option("--open", "Open browser after gateway starts (default: true)", true)
+    .option("--no-open", "Do not open browser after gateway starts")
+=======
+>>>>>>> origin/main
     .action(async (opts) => {
       await runGatewayCommand(opts);
     });

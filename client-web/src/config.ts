@@ -1,4 +1,12 @@
 // API Configuration
+<<<<<<< HEAD
+export const API_CONFIG = {
+  // Gateway URL - in dev, Vite proxies to avoid CORS
+  baseUrl: import.meta.env.CLIENT_WEB_API_TARGET
+    ? "/api"
+    : "http://127.0.0.1:18789/api",
+  token: import.meta.env.VITE_GATEWAY_TOKEN || "dev123",
+=======
 // Supports two modes:
 // 1. Server mode: UI on server, calls local Operis API
 // 2. Client mode: UI bundled with gateway, calls remote Operis API for auth
@@ -55,4 +63,5 @@ export const API_CONFIG = {
   // Legacy alias
   get baseUrl() { return this.operisApiUrl; },
   get token() { return this.gatewayToken; },
+>>>>>>> origin/main
 };

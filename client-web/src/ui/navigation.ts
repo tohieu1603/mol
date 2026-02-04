@@ -1,13 +1,21 @@
 import type { IconName } from "./icons";
 
+<<<<<<< HEAD
+export type Tab = "chat" | "billing" | "logs" | "workflow" | "docs" | "channels" | "settings" | "login" | "register" | "agents" | "skills" | "nodes";
+=======
 export type Tab = "chat" | "billing" | "logs" | "workflow" | "docs" | "login";
+>>>>>>> origin/main
 
 export const NAV_ITEMS: Array<{
   tab: Tab;
   label: string;
   icon: IconName;
   description: string;
+<<<<<<< HEAD
+  section: "main" | "account" | "agent";
+=======
   section: "main" | "account";
+>>>>>>> origin/main
 }> = [
   {
     tab: "chat",
@@ -44,6 +52,39 @@ export const NAV_ITEMS: Array<{
     description: "Documentation and guides",
     section: "main",
   },
+<<<<<<< HEAD
+  // Agent section
+  {
+    tab: "agents",
+    label: "Agents",
+    icon: "folder",
+    description: "Quản lý agents và workspace",
+    section: "agent",
+  },
+  {
+    tab: "skills",
+    label: "Skills",
+    icon: "zap",
+    description: "Quản lý skills và cài đặt",
+    section: "agent",
+  },
+  {
+    tab: "nodes",
+    label: "Nodes",
+    icon: "cpu",
+    description: "Thiết bị và node kết nối",
+    section: "agent",
+  },
+  // Account section
+  {
+    tab: "settings",
+    label: "Settings",
+    icon: "settings",
+    description: "Account settings and preferences",
+    section: "account",
+  },
+=======
+>>>>>>> origin/main
   {
     tab: "login",
     label: "Login",
@@ -59,7 +100,17 @@ const TAB_PATHS: Record<Tab, string> = {
   logs: "/logs",
   workflow: "/workflow",
   docs: "/docs",
+<<<<<<< HEAD
+  channels: "/channels",
+  settings: "/settings",
   login: "/login",
+  register: "/register",
+  agents: "/agents",
+  skills: "/skills",
+  nodes: "/nodes",
+=======
+  login: "/login",
+>>>>>>> origin/main
 };
 
 const PATH_TO_TAB = new Map(

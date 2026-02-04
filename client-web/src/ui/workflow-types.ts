@@ -6,6 +6,10 @@ export type EveryUnit = "minutes" | "hours" | "days";
 export type SessionTarget = "main" | "isolated";
 export type WakeMode = "next-heartbeat" | "now";
 export type PayloadKind = "systemEvent" | "agentTurn";
+<<<<<<< HEAD
+export type DeliveryMode = "announce" | "none";
+=======
+>>>>>>> origin/main
 
 export type WorkflowSchedule = {
   kind: ScheduleKind;
@@ -32,14 +36,26 @@ export type Workflow = {
   payloadKind?: PayloadKind;
   timeout?: number;
   lastRunAt?: number;
+<<<<<<< HEAD
+  lastRunStatus?: "success" | "error" | "running" | "ok";
+  nextRunAt?: number;
+  createdAtMs?: number;
+  updatedAtMs?: number;
+  agentId?: string;
+=======
   lastRunStatus?: "success" | "error" | "running";
   nextRunAt?: number;
+>>>>>>> origin/main
 };
 
 export type WorkflowFormState = {
   name: string;
   description: string;
   enabled: boolean;
+<<<<<<< HEAD
+  agentId: string;
+=======
+>>>>>>> origin/main
   // Schedule
   scheduleKind: ScheduleKind;
   everyAmount: number;
@@ -53,6 +69,13 @@ export type WorkflowFormState = {
   payloadKind: PayloadKind;
   timeout: number;
   postToMainPrefix: string;
+<<<<<<< HEAD
+  // Delivery (for agentTurn with isolated session)
+  deliveryMode: DeliveryMode;
+  deliveryChannel: string;
+  deliveryTo: string;
+=======
+>>>>>>> origin/main
   // Task
   prompt: string;
   notifyMe: boolean;
@@ -62,27 +85,77 @@ export const DEFAULT_WORKFLOW_FORM: WorkflowFormState = {
   name: "",
   description: "",
   enabled: true,
+<<<<<<< HEAD
+  agentId: "",
+=======
+>>>>>>> origin/main
   scheduleKind: "every",
   everyAmount: 1,
   everyUnit: "days",
   atDatetime: "",
   cronExpr: "0 9 * * *",
   cronTz: "",
+<<<<<<< HEAD
+  // Note: "main" session requires payload.kind="systemEvent"
+  // "isolated" allows payload.kind="agentTurn" (send message to AI)
+  sessionTarget: "isolated",
+=======
   sessionTarget: "main",
+>>>>>>> origin/main
   wakeMode: "now",
   payloadKind: "agentTurn",
   timeout: 300,
   postToMainPrefix: "",
+<<<<<<< HEAD
+  // Delivery settings (for isolated + agentTurn)
+  deliveryMode: "announce",
+  deliveryChannel: "last",
+  deliveryTo: "",
+=======
+>>>>>>> origin/main
   prompt: "",
   notifyMe: false,
 };
 
+<<<<<<< HEAD
+// Validate form before conversion
+// Gateway rules: main→systemEvent only, isolated→agentTurn only
+export function validateWorkflowForm(form: WorkflowFormState): string | null {
+  const name = form.name.trim();
+  const prompt = form.prompt.trim();
+
+  if (!name) return "Tên workflow không được để trống";
+  if (!prompt) return "Nội dung công việc không được để trống";
+  if (form.scheduleKind === "at" && !form.atDatetime) return "Vui lòng chọn thời gian chạy";
+  if (form.scheduleKind === "cron" && !form.cronExpr.trim()) return "Biểu thức cron không được để trống";
+  if (form.scheduleKind === "every" && form.everyAmount < 1) return "Chu kỳ phải lớn hơn 0";
+  return null; // Valid
+}
+
+// Convert form state to Cron API format
+// Must match gateway CronAddParamsSchema exactly
+export function formToCronPayload(form: WorkflowFormState) {
+  // Validate first
+  const validationError = validateWorkflowForm(form);
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  // Build schedule object
+  let schedule: { kind: string; everyMs?: number; atMs?: number; expr?: string; tz?: string };
+
+  if (form.scheduleKind === "every") {
+    // Ensure everyAmount is at least 1
+    const amount = Math.max(1, form.everyAmount || 1);
+    let everyMs = amount;
+=======
 // Convert form state to Cron API format
 export function formToCronPayload(form: WorkflowFormState) {
   let schedule: { kind: string; everyMs?: number; atMs?: number; expr?: string; tz?: string };
 
   if (form.scheduleKind === "every") {
     let everyMs = form.everyAmount;
+>>>>>>> origin/main
     switch (form.everyUnit) {
       case "minutes":
         everyMs *= 60 * 1000;
@@ -99,6 +172,39 @@ export function formToCronPayload(form: WorkflowFormState) {
     const atMs = form.atDatetime ? new Date(form.atDatetime).getTime() : Date.now();
     schedule = { kind: "at", atMs };
   } else {
+<<<<<<< HEAD
+    schedule = { kind: "cron", expr: form.cronExpr.trim() };
+    if (form.cronTz?.trim()) schedule.tz = form.cronTz.trim();
+  }
+
+  // Use payload kind from form directly (user can choose freely)
+  const effectivePayloadKind = form.payloadKind;
+  const promptText = form.prompt.trim();
+
+  // Build payload based on payloadKind
+  // agentTurn: { kind, message, deliver? }
+  // systemEvent: { kind, text }
+  let payload: { kind: string; message?: string; deliver?: boolean; text?: string };
+  if (effectivePayloadKind === "agentTurn") {
+    payload = {
+      kind: "agentTurn",
+      message: promptText,
+    };
+    if (form.notifyMe) {
+      payload.deliver = true;
+    }
+  } else {
+    // systemEvent - uses "text" field
+    payload = {
+      kind: "systemEvent",
+      text: promptText,
+    };
+  }
+
+  // Build result matching CronAddParamsSchema
+  const result: Record<string, unknown> = {
+    name: form.name.trim(),
+=======
     schedule = { kind: "cron", expr: form.cronExpr };
     if (form.cronTz) schedule.tz = form.cronTz;
   }
@@ -116,6 +222,7 @@ export function formToCronPayload(form: WorkflowFormState) {
   const result: Record<string, unknown> = {
     name: form.name.trim(),
     description: form.description.trim() || undefined,
+>>>>>>> origin/main
     enabled: form.enabled,
     schedule,
     sessionTarget: form.sessionTarget,
@@ -123,6 +230,40 @@ export function formToCronPayload(form: WorkflowFormState) {
     payload,
   };
 
+<<<<<<< HEAD
+  // Only add description if non-empty
+  const desc = form.description.trim();
+  if (desc) {
+    result.description = desc;
+  }
+
+  // Add agentId if non-empty
+  const agentId = form.agentId.trim();
+  if (agentId) {
+    result.agentId = agentId;
+  }
+
+  // Add delivery object for isolated + agentTurn
+  if (form.sessionTarget === "isolated" && effectivePayloadKind === "agentTurn") {
+    const delivery: Record<string, unknown> = {
+      mode: form.deliveryMode === "announce" ? "announce" : "none",
+    };
+    if (form.deliveryMode === "announce") {
+      delivery.channel = form.deliveryChannel.trim() || "last";
+      const to = form.deliveryTo.trim();
+      if (to) {
+        delivery.to = to;
+      }
+    }
+    result.delivery = delivery;
+  }
+
+  // Add isolation object for isolated sessions with postToMainPrefix
+  if (form.sessionTarget === "isolated" && form.postToMainPrefix.trim()) {
+    result.isolation = {
+      postToMainPrefix: form.postToMainPrefix.trim(),
+    };
+=======
   // Add timeout if set
   if (form.timeout > 0) {
     result.timeoutSec = form.timeout;
@@ -131,19 +272,48 @@ export function formToCronPayload(form: WorkflowFormState) {
   // Add postToMainPrefix for isolated sessions
   if (form.sessionTarget === "isolated" && form.postToMainPrefix.trim()) {
     result.postToMainPrefix = form.postToMainPrefix.trim();
+>>>>>>> origin/main
   }
 
   return result;
 }
 
+<<<<<<< HEAD
+// Vietnamese unit labels
+const UNIT_LABELS_VI: Record<EveryUnit, { singular: string; plural: string }> = {
+  minutes: { singular: "phút", plural: "phút" },
+  hours: { singular: "giờ", plural: "giờ" },
+  days: { singular: "ngày", plural: "ngày" },
+};
+
+// Format schedule for display (Vietnamese)
+export function formatSchedule(schedule: WorkflowSchedule): string {
+  if (!schedule) return "Chưa đặt lịch";
+=======
 // Format schedule for display
 export function formatSchedule(schedule: WorkflowSchedule): string {
   if (!schedule) return "No schedule";
+>>>>>>> origin/main
 
   switch (schedule.kind) {
     case "every": {
       const amount = schedule.everyAmount ?? 1;
       const unit = schedule.everyUnit ?? "days";
+<<<<<<< HEAD
+      const unitLabel = UNIT_LABELS_VI[unit]?.plural ?? unit;
+      return `Mỗi ${amount} ${unitLabel}`;
+    }
+    case "at": {
+      if (!schedule.atDatetime) return "Chạy một lần";
+      const date = new Date(schedule.atDatetime);
+      return `Lúc ${date.toLocaleString("vi-VN")}`;
+    }
+    case "cron": {
+      return schedule.cronExpr ? `Cron: ${schedule.cronExpr}` : "Lịch tùy chỉnh";
+    }
+    default:
+      return "Không xác định";
+=======
       const unitLabel = amount === 1 ? unit.slice(0, -1) : unit;
       return `Every ${amount} ${unitLabel}`;
     }
@@ -157,6 +327,7 @@ export function formatSchedule(schedule: WorkflowSchedule): string {
     }
     default:
       return "Unknown schedule";
+>>>>>>> origin/main
   }
 }
 

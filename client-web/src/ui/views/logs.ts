@@ -1,5 +1,19 @@
 import { html } from "lit";
 import { icons } from "../icons";
+<<<<<<< HEAD
+
+export interface LogsProps {}
+
+export function renderLogs(_props: LogsProps) {
+  const logs = [
+    { id: "1", date: "2026-01-30 11:15", type: "chat", preview: "Hãy nói về điện toán lượng tử...", tokens: 1234 },
+    { id: "2", date: "2026-01-30 10:45", type: "chat", preview: "Làm thế nào để triển khai binary tree?", tokens: 892 },
+    { id: "3", date: "2026-01-29 16:30", type: "workflow", preview: "Tạo tóm tắt hàng ngày", tokens: 2156 },
+    { id: "4", date: "2026-01-29 14:20", type: "chat", preview: "Giải thích về machine learning...", tokens: 1567 },
+    { id: "5", date: "2026-01-29 09:00", type: "workflow", preview: "Tự động gửi báo cáo buổi sáng", tokens: 1890 },
+  ];
+
+=======
 import { t, type Language } from "../i18n";
 
 export interface LogsProps {
@@ -28,10 +42,21 @@ export function renderLogs(props: LogsProps) {
     workflow: lang === "vi" ? "workflow" : "workflow",
   };
 
+>>>>>>> origin/main
   return html`
     <div class="card">
       <div class="card-header">
         <div>
+<<<<<<< HEAD
+          <div class="card-title">Lịch Sử Hội Thoại</div>
+          <div class="card-description">Xem các tương tác trước đó</div>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <operis-input type="text" size="sm" placeholder="Tìm kiếm logs..." has-icon style="width: 200px;">
+            <span slot="icon">${icons.search}</span>
+          </operis-input>
+          <button class="btn btn-secondary btn-sm">Xuất</button>
+=======
           <div class="card-title">${txt.title}</div>
           <div class="card-description">${txt.subtitle}</div>
         </div>
@@ -46,6 +71,7 @@ export function renderLogs(props: LogsProps) {
             <span slot="icon">${icons.search}</span>
           </operis-input>
           <button class="btn btn-secondary btn-sm">${txt.export}</button>
+>>>>>>> origin/main
         </div>
       </div>
 
@@ -62,14 +88,22 @@ export function renderLogs(props: LogsProps) {
                   ${log.date} &middot; ${log.tokens.toLocaleString()} tokens
                 </div>
               </div>
+<<<<<<< HEAD
+              <span class="pill ${log.type === "chat" ? "" : "accent"}">${log.type === "chat" ? "chat" : "workflow"}</span>
+=======
               <span class="pill ${log.type === "chat" ? "" : "accent"}">${log.type === "chat" ? txt.chat : txt.workflow}</span>
+>>>>>>> origin/main
             </div>
           `
         )}
       </div>
 
       <div style="margin-top: 16px; text-align: center;">
+<<<<<<< HEAD
+        <button class="btn btn-ghost btn-sm">Tải thêm</button>
+=======
         <button class="btn btn-ghost btn-sm">${txt.loadMore}</button>
+>>>>>>> origin/main
       </div>
     </div>
   `;

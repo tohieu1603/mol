@@ -81,6 +81,8 @@ export async function updateUser(id: string, data: UserUpdate): Promise<User | n
     fields.push(`token_balance = $${paramIndex++}`);
     values.push(data.token_balance);
   }
+<<<<<<< HEAD
+=======
   if (data.gateway_url !== undefined) {
     fields.push(`gateway_url = $${paramIndex++}`);
     values.push(data.gateway_url);
@@ -89,6 +91,7 @@ export async function updateUser(id: string, data: UserUpdate): Promise<User | n
     fields.push(`gateway_token = $${paramIndex++}`);
     values.push(data.gateway_token);
   }
+>>>>>>> origin/main
 
   if (fields.length === 0) {
     return getUserById(id);
