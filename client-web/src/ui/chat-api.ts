@@ -56,15 +56,101 @@ export function extractTextContent(content: ContentBlock[]): string {
     .join("\n");
 }
 
-// Send chat message
+// Send chat message with SSE streaming
 export async function sendMessage(
   message: string,
   conversationId?: string,
+  onDelta?: (text: string) => void,
+  onDone?: (result: ChatResult) => void,
 ): Promise<ChatResult> {
-  return apiRequest<ChatResult>("/chat", {
+  const { API_CONFIG } = await import("../config");
+  const { getAccessToken } = await import("./auth-api");
+
+  const url = `${API_CONFIG.baseUrl}/chat/stream`;
+  const token = getAccessToken();
+
+  const response = await fetch(url, {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ message, conversationId }),
   });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorMessage = `Request failed: ${response.status}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      errorMessage = errorJson.error || errorMessage;
+    } catch {
+      // Keep default error message
+    }
+    throw new Error(errorMessage);
+  }
+
+  // Parse SSE stream
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: ChatResult | null = null;
+  let accumulatedText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr || jsonStr === "[DONE]") continue;
+
+        try {
+          const data = JSON.parse(jsonStr);
+
+          // Handle delta events (streaming text)
+          if (data.type === "delta" || data.delta) {
+            const deltaText = data.delta?.text || data.text || "";
+            accumulatedText += deltaText;
+            // Normalize: replace 3+ newlines with 2, trim trailing whitespace per line
+            const normalizedText = accumulatedText
+              .replace(/\n{3,}/g, "\n\n")
+              .replace(/[ \t]+\n/g, "\n");
+            onDelta?.(normalizedText);
+          }
+
+          // Handle final result
+          if (data.type === "done" || data.role === "assistant") {
+            finalResult = data as ChatResult;
+            onDone?.(finalResult);
+          }
+        } catch {
+          // Skip malformed JSON lines
+        }
+      }
+    }
+  }
+
+  // Return final result or construct one from accumulated text
+  if (finalResult) return finalResult;
+
+  return {
+    role: "assistant",
+    content: [{ type: "text", text: accumulatedText }],
+    model: "unknown",
+    provider: "unknown",
+    usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    stopReason: "end_turn",
+    conversationId: conversationId || "",
+    tokenBalance: 0,
+  };
 }
 
 // Get token balance

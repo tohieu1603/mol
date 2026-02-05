@@ -1,21 +1,13 @@
 import type { IconName } from "./icons";
 
-<<<<<<< HEAD
 export type Tab = "chat" | "billing" | "logs" | "workflow" | "docs" | "channels" | "settings" | "login" | "register" | "agents" | "skills" | "nodes";
-=======
-export type Tab = "chat" | "billing" | "logs" | "workflow" | "docs" | "login";
->>>>>>> origin/main
 
 export const NAV_ITEMS: Array<{
   tab: Tab;
   label: string;
   icon: IconName;
   description: string;
-<<<<<<< HEAD
   section: "main" | "account" | "agent";
-=======
-  section: "main" | "account";
->>>>>>> origin/main
 }> = [
   {
     tab: "chat",
@@ -52,7 +44,6 @@ export const NAV_ITEMS: Array<{
     description: "Documentation and guides",
     section: "main",
   },
-<<<<<<< HEAD
   // Agent section
   {
     tab: "agents",
@@ -83,8 +74,6 @@ export const NAV_ITEMS: Array<{
     description: "Account settings and preferences",
     section: "account",
   },
-=======
->>>>>>> origin/main
   {
     tab: "login",
     label: "Login",
@@ -100,7 +89,6 @@ const TAB_PATHS: Record<Tab, string> = {
   logs: "/logs",
   workflow: "/workflow",
   docs: "/docs",
-<<<<<<< HEAD
   channels: "/channels",
   settings: "/settings",
   login: "/login",
@@ -108,9 +96,6 @@ const TAB_PATHS: Record<Tab, string> = {
   agents: "/agents",
   skills: "/skills",
   nodes: "/nodes",
-=======
-  login: "/login",
->>>>>>> origin/main
 };
 
 const PATH_TO_TAB = new Map(
