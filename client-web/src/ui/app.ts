@@ -29,6 +29,7 @@ import { renderSettings } from "./views/settings";
 import { renderAgents } from "./views/agents";
 import { renderSkills } from "./views/skills";
 import { renderNodes } from "./views/nodes";
+import { renderAnalytics } from "./views/analytics";
 import type {
   AgentsListResult,
   AgentFileEntry,
@@ -82,6 +83,15 @@ import {
   changePassword,
   type UserProfile,
 } from "./user-api";
+import {
+  getDailyUsage,
+  transformDailyUsage,
+  transformTypeUsage,
+  transformStats,
+  type DailyUsage,
+  type TypeUsage,
+  type UsageStats,
+} from "./analytics-api";
 
 // Register custom components
 import "./components/operis-input";
@@ -95,6 +105,7 @@ import { showConfirm } from "./components/operis-confirm";
 function titleForTab(tab: Tab): string {
   const titles: Record<Tab, string> = {
     chat: "Trò Chuyện",
+    analytics: "Phân Tích",
     workflow: "Luồng Công Việc",
     billing: "Thanh Toán",
     logs: "Nhật Ký",
@@ -114,6 +125,7 @@ function titleForTab(tab: Tab): string {
 function subtitleForTab(tab: Tab): string {
   const subtitles: Record<Tab, string> = {
     chat: "Phiên chat trực tiếp với gateway",
+    analytics: "Xem thống kê sử dụng và chi phí",
     workflow: "Tự động hóa tác vụ với AI theo lịch",
     billing: "Xem sử dụng và quản lý gói",
     logs: "Xem nhật ký hệ thống",
@@ -270,6 +282,14 @@ export class OperisApp extends LitElement {
   @state() devicesError: string | null = null;
   @state() devicesList: DevicePairingList | null = null;
 
+  // Analytics state
+  @state() analyticsLoading = false;
+  @state() analyticsError: string | null = null;
+  @state() analyticsStats: UsageStats | null = null;
+  @state() analyticsDailyUsage: DailyUsage[] = [];
+  @state() analyticsTypeUsage: TypeUsage[] = [];
+  @state() analyticsPeriod: "7d" | "30d" | "90d" = "30d";
+
   private themeMedia: MediaQueryList | null = null;
   private themeMediaHandler: ((event: MediaQueryListEvent) => void) | null =
     null;
@@ -348,11 +368,11 @@ export class OperisApp extends LitElement {
       this.runningWorkflowIds = newSet;
     }
 
-    // Auto-refresh workflows when on workflow tab
+    // Auto-refresh workflows when on workflow tab (silent - no loading indicator)
     if (this.tab === "workflow") {
       // Debounce: only refresh if not already loading
       if (!this.workflowLoading) {
-        this.loadWorkflows();
+        this.loadWorkflows(true);
       }
     }
   }
@@ -489,6 +509,8 @@ export class OperisApp extends LitElement {
     } else if (tab === "nodes") {
       this.loadNodes();
       this.loadDevices();
+    } else if (tab === "analytics") {
+      this.loadAnalytics();
     }
   }
 
@@ -718,9 +740,11 @@ export class OperisApp extends LitElement {
   }
 
   // Workflow handlers
-  private async loadWorkflows() {
-    this.workflowLoading = true;
-    this.workflowError = null;
+  private async loadWorkflows(silent = false) {
+    if (!silent) {
+      this.workflowLoading = true;
+      this.workflowError = null;
+    }
     const startTime = Date.now();
     try {
       // Load both workflows and status in parallel
@@ -731,14 +755,18 @@ export class OperisApp extends LitElement {
       this.workflows = workflows;
       this.workflowStatus = status;
     } catch (err) {
-      this.workflowError =
-        err instanceof Error ? err.message : "Không thể tải workflows";
+      if (!silent) {
+        this.workflowError =
+          err instanceof Error ? err.message : "Không thể tải workflows";
+      }
     } finally {
-      // Ensure minimum 400ms loading time for visible feedback
-      const elapsed = Date.now() - startTime;
-      const minDelay = 400;
-      if (elapsed < minDelay) {
-        await new Promise(r => setTimeout(r, minDelay - elapsed));
+      if (!silent) {
+        // Ensure minimum 400ms loading time for visible feedback
+        const elapsed = Date.now() - startTime;
+        const minDelay = 400;
+        if (elapsed < minDelay) {
+          await new Promise(r => setTimeout(r, minDelay - elapsed));
+        }
       }
       this.workflowLoading = false;
     }
@@ -755,7 +783,8 @@ export class OperisApp extends LitElement {
       await createWorkflow(this.workflowForm);
       showToast(`Đã tạo workflow "${this.workflowForm.name}"`, "success");
       this.workflowForm = { ...DEFAULT_WORKFLOW_FORM };
-      await this.loadWorkflows();
+      // Silent background refresh - no loading indicator
+      this.loadWorkflows(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Không thể tạo workflow";
       showToast(msg, "error");
@@ -766,15 +795,22 @@ export class OperisApp extends LitElement {
   }
 
   private async handleWorkflowToggle(workflow: Workflow) {
+    const newState = !workflow.enabled;
+    // Optimistic update - update UI immediately
+    this.workflows = this.workflows.map((w) =>
+      w.id === workflow.id ? { ...w, enabled: newState } : w
+    );
     try {
-      const newState = !workflow.enabled;
       await toggleWorkflow(workflow.id, newState);
       showToast(
         newState ? `Đã kích hoạt "${workflow.name}"` : `Đã tạm dừng "${workflow.name}"`,
         "success"
       );
-      await this.loadWorkflows();
     } catch (err) {
+      // Revert on error
+      this.workflows = this.workflows.map((w) =>
+        w.id === workflow.id ? { ...w, enabled: !newState } : w
+      );
       const msg = err instanceof Error ? err.message : "Không thể thay đổi trạng thái";
       showToast(msg, "error");
       this.workflowError = msg;
@@ -782,11 +818,21 @@ export class OperisApp extends LitElement {
   }
 
   private async handleWorkflowRun(workflow: Workflow) {
+    // Mark as running immediately
+    this.runningWorkflowIds = new Set([...this.runningWorkflowIds, workflow.id]);
     try {
       await runWorkflow(workflow.id);
       showToast(`Đang chạy "${workflow.name}"...`, "info");
-      await this.loadWorkflows();
+      // Update lastRunStatus after a delay (workflow takes time to complete)
+      setTimeout(() => {
+        this.runningWorkflowIds = new Set(
+          [...this.runningWorkflowIds].filter((id) => id !== workflow.id)
+        );
+      }, 3000);
     } catch (err) {
+      this.runningWorkflowIds = new Set(
+        [...this.runningWorkflowIds].filter((id) => id !== workflow.id)
+      );
       const msg = err instanceof Error ? err.message : "Không thể chạy workflow";
       showToast(msg, "error");
       this.workflowError = msg;
@@ -802,11 +848,15 @@ export class OperisApp extends LitElement {
       variant: "danger",
     });
     if (!confirmed) return;
+    // Optimistic delete - remove from UI immediately
+    const originalWorkflows = this.workflows;
+    this.workflows = this.workflows.filter((w) => w.id !== workflow.id);
     try {
       await deleteWorkflow(workflow.id);
       showToast(`Đã xóa "${workflow.name}"`, "success");
-      await this.loadWorkflows();
     } catch (err) {
+      // Revert on error
+      this.workflows = originalWorkflows;
       const msg = err instanceof Error ? err.message : "Không thể xóa workflow";
       showToast(msg, "error");
       this.workflowError = msg;
@@ -1295,6 +1345,31 @@ export class OperisApp extends LitElement {
     }
   }
 
+  // Analytics handlers
+  private async loadAnalytics() {
+    this.analyticsLoading = true;
+    this.analyticsError = null;
+    try {
+      // Get number of days based on period
+      const days = this.analyticsPeriod === "7d" ? 7 : this.analyticsPeriod === "30d" ? 30 : 90;
+
+      const result = await getDailyUsage(days);
+
+      this.analyticsStats = transformStats(result.stats);
+      this.analyticsDailyUsage = transformDailyUsage(result.daily);
+      this.analyticsTypeUsage = transformTypeUsage(result.byType);
+    } catch (err) {
+      this.analyticsError = err instanceof Error ? err.message : "Không thể tải dữ liệu analytics";
+    } finally {
+      this.analyticsLoading = false;
+    }
+  }
+
+  private handleAnalyticsPeriodChange(period: "7d" | "30d" | "90d") {
+    this.analyticsPeriod = period;
+    this.loadAnalytics();
+  }
+
   private handleThemeClick(mode: ThemeMode, event: MouseEvent) {
     this.setTheme(mode, {
       pointerClientX: event.clientX,
@@ -1336,6 +1411,7 @@ export class OperisApp extends LitElement {
   private getNavLabel(tab: Tab): string {
     const labels: Record<Tab, string> = {
       chat: "Trò chuyện",
+      analytics: "Phân tích",
       workflow: "Workflows",
       billing: "Thanh toán",
       logs: "Nhật ký",
@@ -1451,6 +1527,18 @@ export class OperisApp extends LitElement {
           onDraftChange: (value) => (this.chatDraft = value),
           onSend: () => this.handleSendMessage(),
           onLoginClick: () => this.setTab("login"),
+        });
+      case "analytics":
+        return renderAnalytics({
+          loading: this.analyticsLoading,
+          error: this.analyticsError,
+          tokenBalance: this.billingCreditBalance,
+          stats: this.analyticsStats,
+          dailyUsage: this.analyticsDailyUsage,
+          typeUsage: this.analyticsTypeUsage,
+          selectedPeriod: this.analyticsPeriod,
+          onPeriodChange: (period) => this.handleAnalyticsPeriodChange(period),
+          onRefresh: () => this.loadAnalytics(),
         });
       case "billing":
         return renderBilling({

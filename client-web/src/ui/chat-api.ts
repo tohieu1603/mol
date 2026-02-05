@@ -56,6 +56,29 @@ export function extractTextContent(content: ContentBlock[]): string {
     .join("\n");
 }
 
+// Chat request options
+export interface ChatOptions {
+  model?: string;
+  systemPrompt?: string;
+  conversationId?: string;
+}
+
+// Send chat message (non-streaming)
+export async function sendMessageSync(
+  message: string,
+  options?: ChatOptions,
+): Promise<ChatResult> {
+  return apiRequest<ChatResult>("/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      message,
+      model: options?.model,
+      systemPrompt: options?.systemPrompt,
+      conversationId: options?.conversationId,
+    }),
+  });
+}
+
 // Send chat message with SSE streaming
 export async function sendMessage(
   message: string,
@@ -119,11 +142,7 @@ export async function sendMessage(
           if (data.type === "delta" || data.delta) {
             const deltaText = data.delta?.text || data.text || "";
             accumulatedText += deltaText;
-            // Normalize: replace 3+ newlines with 2, trim trailing whitespace per line
-            const normalizedText = accumulatedText
-              .replace(/\n{3,}/g, "\n\n")
-              .replace(/[ \t]+\n/g, "\n");
-            onDelta?.(normalizedText);
+            onDelta?.(accumulatedText);
           }
 
           // Handle final result
