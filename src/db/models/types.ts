@@ -376,3 +376,54 @@ export interface TokenTransactionCreate {
   description?: string;
   reference_id?: string;
 }
+
+// ============================================================================
+// Token Usage Types (Analytics)
+// ============================================================================
+export interface TokenUsage {
+  id: string;
+  user_id: string;
+  request_type: "chat" | "cronjob" | "api";
+  request_id: string | null;
+  model: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_tokens: number;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+}
+
+export interface TokenUsageCreate {
+  user_id: string;
+  request_type: "chat" | "cronjob" | "api";
+  request_id?: string;
+  model?: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens?: number;
+  cost_tokens?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TokenUsageStats {
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost_tokens: number;
+}
+
+export interface TokenUsageByType extends TokenUsageStats {
+  request_type: "chat" | "cronjob" | "api";
+}
+
+export interface TokenUsageByDate extends TokenUsageStats {
+  date: string;
+}
+
+export interface TokenUsageByUser extends TokenUsageStats {
+  user_id: string;
+  user_email: string;
+  user_name: string;
+}
