@@ -1,6 +1,6 @@
 import type { IconName } from "./icons";
 
-export type Tab = "chat" | "billing" | "logs" | "workflow" | "docs" | "channels" | "settings" | "login" | "register" | "agents" | "skills" | "nodes";
+export type Tab = "chat" | "billing" | "logs" | "workflow" | "docs" | "channels" | "settings" | "login" | "register" | "agents" | "skills" | "nodes" | "analytics";
 
 export const NAV_ITEMS: Array<{
   tab: Tab;
@@ -14,6 +14,13 @@ export const NAV_ITEMS: Array<{
     label: "Chat",
     icon: "messageSquare",
     description: "Direct gateway chat session for quick interventions.",
+    section: "main",
+  },
+  {
+    tab: "analytics",
+    label: "Analytics",
+    icon: "barChart",
+    description: "View usage statistics and costs",
     section: "main",
   },
   {
@@ -85,6 +92,7 @@ export const NAV_ITEMS: Array<{
 
 const TAB_PATHS: Record<Tab, string> = {
   chat: "/chat",
+  analytics: "/analytics",
   billing: "/billing",
   logs: "/logs",
   workflow: "/workflow",

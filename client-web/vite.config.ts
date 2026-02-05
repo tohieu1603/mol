@@ -24,7 +24,8 @@ export default defineConfig(() => {
   const base = envBase ? normalizeBase(envBase) : "./";
 
   // Map root GATEWAY_TOKEN to VITE_GATEWAY_TOKEN for client
-  const gatewayToken = process.env.VITE_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || "";
+  const gatewayToken =
+    process.env.VITE_GATEWAY_TOKEN || process.env.GATEWAY_TOKEN || "";
   const port = parseInt(process.env.CLIENT_WEB_PORT || "5173", 10);
   const apiTarget =
     process.env.CLIENT_WEB_API_TARGET || "http://127.0.0.1:18789";

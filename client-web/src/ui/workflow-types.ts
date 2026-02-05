@@ -148,17 +148,40 @@ export function formToCronPayload(form: WorkflowFormState) {
   const promptText = form.prompt.trim();
 
   // Build payload based on payloadKind
-  // agentTurn: { kind, message, deliver? }
+  // agentTurn: { kind, message, deliver?, channel?, to? }
   // systemEvent: { kind, text }
-  let payload: { kind: string; message?: string; deliver?: boolean; text?: string };
+  type AgentTurnPayload = {
+    kind: "agentTurn";
+    message: string;
+    deliver?: boolean;
+    channel?: string;
+    to?: string;
+  };
+  type SystemEventPayload = {
+    kind: "systemEvent";
+    text: string;
+  };
+
+  let payload: AgentTurnPayload | SystemEventPayload;
+
   if (effectivePayloadKind === "agentTurn") {
-    payload = {
+    const agentPayload: AgentTurnPayload = {
       kind: "agentTurn",
       message: promptText,
     };
-    if (form.notifyMe) {
-      payload.deliver = true;
+
+    // Delivery settings go INSIDE payload for agentTurn
+    if (form.deliveryMode === "announce") {
+      agentPayload.deliver = true;
+      const channel = form.deliveryChannel.trim() || "last";
+      agentPayload.channel = channel;
+      const to = form.deliveryTo.trim();
+      if (to) {
+        agentPayload.to = to;
+      }
     }
+
+    payload = agentPayload;
   } else {
     // systemEvent - uses "text" field
     payload = {
@@ -167,7 +190,7 @@ export function formToCronPayload(form: WorkflowFormState) {
     };
   }
 
-  // Build result matching CronAddParamsSchema
+  // Build result matching gateway CronAddParamsSchema
   const result: Record<string, unknown> = {
     name: form.name.trim(),
     enabled: form.enabled,
@@ -187,21 +210,6 @@ export function formToCronPayload(form: WorkflowFormState) {
   const agentId = form.agentId.trim();
   if (agentId) {
     result.agentId = agentId;
-  }
-
-  // Add delivery object for isolated + agentTurn
-  if (form.sessionTarget === "isolated" && effectivePayloadKind === "agentTurn") {
-    const delivery: Record<string, unknown> = {
-      mode: form.deliveryMode === "announce" ? "announce" : "none",
-    };
-    if (form.deliveryMode === "announce") {
-      delivery.channel = form.deliveryChannel.trim() || "last";
-      const to = form.deliveryTo.trim();
-      if (to) {
-        delivery.to = to;
-      }
-    }
-    result.delivery = delivery;
   }
 
   // Add isolation object for isolated sessions with postToMainPrefix
