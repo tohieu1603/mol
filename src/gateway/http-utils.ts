@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
 import { buildAgentMainSessionKey, normalizeAgentId } from "../routing/session-key.js";
@@ -57,6 +56,6 @@ export function resolveSessionKey(params: {
   if (explicit) return explicit;
 
   const user = params.user?.trim();
-  const mainKey = user ? `${params.prefix}-user:${user}` : `${params.prefix}:${randomUUID()}`;
+  const mainKey = user ? `${params.prefix}-user:${user}` : "main";
   return buildAgentMainSessionKey({ agentId: params.agentId, mainKey });
 }

@@ -223,7 +223,24 @@ export async function handleOpenAiHttpRequest(
         deps,
       );
 
-      const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
+      // Type the result properly to access meta.agentMeta.usage
+      type AgentResult = {
+        payloads?: Array<{ text?: string }>;
+        meta?: {
+          agentMeta?: {
+            usage?: {
+              input?: number;
+              output?: number;
+              cacheRead?: number;
+              cacheWrite?: number;
+              total?: number;
+            };
+          };
+        };
+      };
+
+      const typedResult = result as AgentResult | null;
+      const payloads = typedResult?.payloads;
       const content =
         Array.isArray(payloads) && payloads.length > 0
           ? payloads
@@ -232,45 +249,56 @@ export async function handleOpenAiHttpRequest(
               .join("\n\n")
           : "No response from Moltbot.";
 
-      // Get real usage from session transcript
+      // Get real usage from result.meta.agentMeta.usage (preferred)
+      // Fall back to transcript file if not available
       let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
-      console.log("[openai-http] Getting usage from session:", sessionKey);
-      try {
-        const storePath = resolveStorePath();
-        const store = loadSessionStore(storePath);
-        const session = store[sessionKey];
-        const transcriptsDir = resolveSessionTranscriptsDir();
-        const transcriptFile = session?.sessionId
-          ? path.join(transcriptsDir, `${session.sessionId}.jsonl`)
-          : null;
 
-        console.log("[openai-http] Transcript file:", transcriptFile);
-        if (transcriptFile && fs.existsSync(transcriptFile)) {
-          const lines = fs.readFileSync(transcriptFile, "utf-8").trim().split("\n");
-          console.log("[openai-http] Transcript lines:", lines.length);
-          // Get last assistant message with usage
-          for (let i = lines.length - 1; i >= 0; i--) {
-            try {
-              const entry = JSON.parse(lines[i]);
-              if (entry.role === "assistant" && entry.usage) {
-                const u = entry.usage;
-                console.log("[openai-http] Found usage:", JSON.stringify(u));
-                usage = {
-                  prompt_tokens: (u.input ?? 0) + (u.cacheRead ?? 0),
-                  completion_tokens: u.output ?? 0,
-                  total_tokens: u.totalTokens ?? 0,
-                };
-                break;
+      // Try getting usage directly from result first
+      const resultUsage = typedResult?.meta?.agentMeta?.usage;
+      if (resultUsage) {
+        const inputTokens = (resultUsage.input ?? 0) + (resultUsage.cacheRead ?? 0);
+        const outputTokens = resultUsage.output ?? 0;
+        usage = {
+          prompt_tokens: inputTokens,
+          completion_tokens: outputTokens,
+          total_tokens: resultUsage.total ?? inputTokens + outputTokens,
+        };
+      } else {
+        // Fall back to reading from transcript file
+        try {
+          const storePath = resolveStorePath();
+          const store = loadSessionStore(storePath);
+          const session = store[sessionKey];
+          const transcriptsDir = resolveSessionTranscriptsDir();
+          const transcriptFile = session?.sessionId
+            ? path.join(transcriptsDir, `${session.sessionId}.jsonl`)
+            : null;
+
+          if (transcriptFile && fs.existsSync(transcriptFile)) {
+            const lines = fs.readFileSync(transcriptFile, "utf-8").trim().split("\n");
+            // Get last assistant message with usage
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try {
+                const entry = JSON.parse(lines[i]);
+                if (entry.role === "assistant" && entry.usage) {
+                  const u = entry.usage;
+                  const inputTokens = (u.input ?? 0) + (u.cacheRead ?? 0);
+                  const outputTokens = u.output ?? 0;
+                  usage = {
+                    prompt_tokens: inputTokens,
+                    completion_tokens: outputTokens,
+                    total_tokens: u.total ?? inputTokens + outputTokens,
+                  };
+                  break;
+                }
+              } catch {
+                /* skip invalid lines */
               }
-            } catch {
-              /* skip invalid lines */
             }
           }
-        } else {
-          console.log("[openai-http] Transcript file not found");
+        } catch {
+          // Ignore errors, use default usage
         }
-      } catch (err) {
-        console.log("[openai-http] Error getting usage:", err);
       }
 
       sendJson(res, 200, {

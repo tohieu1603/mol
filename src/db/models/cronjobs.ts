@@ -215,12 +215,22 @@ export async function getDueCronjobs(limit: number = 100): Promise<Cronjob[]> {
 
 /**
  * Toggle cronjob enabled status
+ * When disabling, also clears next_run_at to prevent scheduling
  */
 export async function toggleCronjob(id: string, enabled: boolean): Promise<Cronjob | null> {
-  return queryOne<Cronjob>("UPDATE cronjobs SET enabled = $1 WHERE id = $2 RETURNING *", [
-    enabled,
-    id,
-  ]);
+  if (enabled) {
+    // When enabling, just set enabled = true (next_run_at will be recalculated on next tick)
+    return queryOne<Cronjob>("UPDATE cronjobs SET enabled = $1 WHERE id = $2 RETURNING *", [
+      enabled,
+      id,
+    ]);
+  } else {
+    // When disabling, also clear next_run_at to ensure job won't run
+    return queryOne<Cronjob>(
+      "UPDATE cronjobs SET enabled = $1, next_run_at = NULL WHERE id = $2 RETURNING *",
+      [enabled, id],
+    );
+  }
 }
 
 // ============================================================================
