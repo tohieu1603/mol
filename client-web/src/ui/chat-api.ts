@@ -113,7 +113,7 @@ export async function sendMessage(
     throw new Error(errorMessage);
   }
 
-  // Parse SSE stream
+  // Parse SSE stream with named events (event: xxx\ndata: {...})
   const reader = response.body?.getReader();
   if (!reader) throw new Error("No response body");
 
@@ -121,6 +121,8 @@ export async function sendMessage(
   let buffer = "";
   let finalResult: ChatResult | null = null;
   let accumulatedText = "";
+  let currentEvent = "";
+  let convId = conversationId || "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -131,6 +133,13 @@ export async function sendMessage(
     buffer = lines.pop() || ""; // Keep incomplete line in buffer
 
     for (const line of lines) {
+      // Parse event name
+      if (line.startsWith("event: ")) {
+        currentEvent = line.slice(7).trim();
+        continue;
+      }
+
+      // Parse data
       if (line.startsWith("data: ")) {
         const jsonStr = line.slice(6).trim();
         if (!jsonStr || jsonStr === "[DONE]") continue;
@@ -138,20 +147,40 @@ export async function sendMessage(
         try {
           const data = JSON.parse(jsonStr);
 
-          // Handle delta events (streaming text)
-          if (data.type === "delta" || data.delta) {
-            const deltaText = data.delta?.text || data.text || "";
-            accumulatedText += deltaText;
+          // Handle based on event type from backend
+          if (currentEvent === "meta" && data.conversationId) {
+            convId = data.conversationId;
+          } else if (currentEvent === "content" && data.content !== undefined) {
+            // Backend sends full accumulated content in each chunk
+            accumulatedText = data.content;
             onDelta?.(accumulatedText);
+          } else if (currentEvent === "done") {
+            // Build final result from done event
+            finalResult = {
+              role: "assistant",
+              content: [{ type: "text", text: accumulatedText }],
+              model: "unknown",
+              provider: "unknown",
+              usage: data.usage || { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+              stopReason: "end_turn",
+              conversationId: data.conversationId || convId,
+              tokenBalance: data.tokenBalance || 0,
+            };
+            onDone?.(finalResult);
+          } else if (currentEvent === "error") {
+            // Mark as SSE error and throw
+            const err = new Error(data.error || "Stream error");
+            (err as Error & { isSSEError: boolean }).isSSEError = true;
+            throw err;
           }
 
-          // Handle final result
-          if (data.type === "done" || data.role === "assistant") {
-            finalResult = data as ChatResult;
-            onDone?.(finalResult);
+          // Reset event after processing
+          currentEvent = "";
+        } catch (e) {
+          // Re-throw SSE errors from backend, skip malformed JSON parsing errors
+          if (e instanceof Error && (e as Error & { isSSEError?: boolean }).isSSEError) {
+            throw e;
           }
-        } catch {
-          // Skip malformed JSON lines
         }
       }
     }
@@ -167,7 +196,7 @@ export async function sendMessage(
     provider: "unknown",
     usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
     stopReason: "end_turn",
-    conversationId: conversationId || "",
+    conversationId: convId,
     tokenBalance: 0,
   };
 }

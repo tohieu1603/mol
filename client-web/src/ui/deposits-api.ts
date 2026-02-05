@@ -1,90 +1,294 @@
 /**
  * Deposits API Service
  * Handles payment and deposit operations with Operis API
+ *
+ * Endpoints:
+ * - GET /deposits/pricing - Bảng giá token
+ * - POST /deposits - Tạo đơn nạp tiền
+ * - GET /deposits/pending - Đơn nạp đang chờ
+ * - DELETE /deposits/{id} - Hủy đơn nạp
+ * - GET /deposits/{id} - Chi tiết đơn nạp
+ * - GET /deposits/history - Lịch sử nạp tiền
+ * - GET /deposits/tokens/history - Lịch sử token từ deposits
  */
 
 import { apiRequest } from "./auth-api";
 
+// =============================================================================
 // Types
+// =============================================================================
+
 export interface PricingTier {
   id: string;
   name: string;
+  price: number; // VND
   tokens: number;
-  priceVnd: number;
-  bonusPercent: number;
+  bonus: number;
   popular?: boolean;
+}
+
+// Backend response format
+interface BackendPricingResponse {
+  pricePerMillion: number;
+  currency: string;
+  minimumTokens: number;
+  minimumVnd: number;
+  packages: Array<{
+    id: string;
+    name: string;
+    tokens: number;
+    priceVnd: number;
+    bonus: number;
+    popular: boolean;
+  }>;
 }
 
 export interface PricingResponse {
   tiers: PricingTier[];
-  minDeposit: number;
-  maxDeposit: number;
+  currency: string;
+  pricePerMillion: number;
+  minimumTokens: number;
 }
 
+export interface PaymentInfo {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  transferContent: string;
+  qrCodeUrl: string;
+}
+
+// Backend payment info format (snake_case from API)
+interface BackendPaymentInfo {
+  bank_name: string;
+  account_number: string;
+  account_name: string;
+  transfer_content: string;
+  qr_code_url: string;
+}
+
+// Backend response format (snake_case from API)
+interface BackendDepositOrder {
+  id: string;
+  order_code: string;
+  token_amount: number;
+  amount_vnd: number;
+  status: string;
+  payment_info: BackendPaymentInfo;
+  expires_at: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+// Frontend-friendly format
 export interface DepositOrder {
   id: string;
-  userId: string;
-  tierId: string;
+  orderCode: string;
+  status: "pending" | "completed" | "cancelled" | "expired";
+  amount: number; // VND
   tokens: number;
-  amountVnd: number;
-  status: "pending" | "completed" | "failed" | "expired";
-  paymentMethod: "sepay" | "bank_transfer" | "momo";
-  paymentUrl?: string;
-  qrCodeUrl?: string;
-  transactionRef?: string;
-  createdAt: string;
+  paymentInfo: PaymentInfo;
   expiresAt: string;
+  createdAt: string;
   completedAt?: string;
 }
 
 export interface CreateDepositRequest {
-  tierId: string;
-  paymentMethod?: "sepay" | "bank_transfer" | "momo";
+  tokenAmount: number;
 }
 
-export interface CreateDepositResponse {
-  order: DepositOrder;
-  paymentUrl?: string;
-  qrCodeUrl?: string;
-  bankInfo?: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-    transferContent: string;
+export interface DepositHistoryResponse {
+  deposits: DepositOrder[];
+  total: number;
+}
+
+export interface TokenTransaction {
+  id: string;
+  type: "credit" | "debit";
+  amount: number;
+  balance: number;
+  description: string;
+  createdAt: string;
+  depositId?: string;
+}
+
+export interface TokenHistoryResponse {
+  transactions: TokenTransaction[];
+  total: number;
+  totalTokens: number;
+}
+
+// =============================================================================
+// API Functions
+// =============================================================================
+
+/**
+ * Get pricing tiers (public endpoint)
+ */
+export async function getPricing(): Promise<PricingResponse> {
+  const response = await apiRequest<BackendPricingResponse>("/deposits/pricing");
+
+  // Transform backend packages to frontend tiers
+  return {
+    tiers: response.packages.map((pkg) => ({
+      id: pkg.id,
+      name: pkg.name,
+      price: pkg.priceVnd,
+      tokens: pkg.tokens,
+      bonus: pkg.bonus,
+      popular: pkg.popular,
+    })),
+    currency: response.currency,
+    pricePerMillion: response.pricePerMillion,
+    minimumTokens: response.minimumTokens,
   };
 }
 
-// Get pricing tiers (public)
-export async function getPricing(): Promise<PricingResponse> {
-  return apiRequest<PricingResponse>("/deposits/pricing");
+// Transform backend payment info to frontend format
+function transformPaymentInfo(backend: BackendPaymentInfo): PaymentInfo {
+  return {
+    bankName: backend.bank_name,
+    accountNumber: backend.account_number,
+    accountName: backend.account_name,
+    transferContent: backend.transfer_content,
+    qrCodeUrl: backend.qr_code_url,
+  };
 }
 
-// Create deposit order
+// Transform backend deposit to frontend format
+// Handles both snake_case and camelCase from backend
+function transformDeposit(backend: BackendDepositOrder & Record<string, unknown>): DepositOrder {
+  // Backend may return snake_case or camelCase depending on endpoint
+  const orderCode = backend.order_code ?? (backend as unknown as { orderCode?: string }).orderCode ?? "";
+  const amountVnd = backend.amount_vnd ?? (backend as unknown as { amountVnd?: number }).amountVnd ?? 0;
+  const tokenAmount = backend.token_amount ?? (backend as unknown as { tokenAmount?: number }).tokenAmount ?? 0;
+  const expiresAt = backend.expires_at ?? (backend as unknown as { expiresAt?: string }).expiresAt ?? "";
+  const createdAt = backend.created_at ?? (backend as unknown as { createdAt?: string }).createdAt ?? "";
+  const completedAt = backend.completed_at ?? (backend as unknown as { completedAt?: string }).completedAt;
+
+  // Handle payment info - could be snake_case or camelCase
+  const paymentInfoRaw = backend.payment_info ?? (backend as unknown as { paymentInfo?: BackendPaymentInfo }).paymentInfo;
+  let paymentInfo: PaymentInfo;
+  if (paymentInfoRaw) {
+    // Check if it's already camelCase
+    const pi = paymentInfoRaw as BackendPaymentInfo & Record<string, unknown>;
+    paymentInfo = {
+      bankName: pi.bank_name ?? (pi as unknown as { bankName?: string }).bankName ?? "",
+      accountNumber: pi.account_number ?? (pi as unknown as { accountNumber?: string }).accountNumber ?? "",
+      accountName: pi.account_name ?? (pi as unknown as { accountName?: string }).accountName ?? "",
+      transferContent: pi.transfer_content ?? (pi as unknown as { transferContent?: string }).transferContent ?? "",
+      qrCodeUrl: pi.qr_code_url ?? (pi as unknown as { qrCodeUrl?: string }).qrCodeUrl ?? "",
+    };
+  } else {
+    paymentInfo = {
+      bankName: "",
+      accountNumber: "",
+      accountName: "",
+      transferContent: "",
+      qrCodeUrl: "",
+    };
+  }
+
+  return {
+    id: backend.id,
+    orderCode,
+    status: backend.status as DepositOrder["status"],
+    amount: amountVnd,
+    tokens: tokenAmount,
+    paymentInfo,
+    expiresAt,
+    createdAt,
+    completedAt,
+  };
+}
+
+/**
+ * Create deposit order
+ */
 export async function createDeposit(
   request: CreateDepositRequest,
-): Promise<CreateDepositResponse> {
-  return apiRequest<CreateDepositResponse>("/deposits", {
+): Promise<DepositOrder> {
+  // Send snake_case to backend
+  const response = await apiRequest<BackendDepositOrder>("/deposits", {
     method: "POST",
-    body: JSON.stringify(request),
+    body: JSON.stringify({ token_amount: request.tokenAmount }),
+  });
+  return transformDeposit(response);
+}
+
+/**
+ * Get pending deposit order (if any)
+ */
+export async function getPendingDeposit(): Promise<DepositOrder | null> {
+  try {
+    const result = await apiRequest<BackendDepositOrder | null>("/deposits/pending");
+    console.log("[deposits-api] getPendingDeposit raw result:", result);
+    if (!result) return null;
+    const transformed = transformDeposit(result);
+    console.log("[deposits-api] getPendingDeposit transformed:", transformed);
+    return transformed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get deposit order by ID
+ */
+export async function getDeposit(orderId: string): Promise<DepositOrder> {
+  const response = await apiRequest<BackendDepositOrder>(`/deposits/${orderId}`);
+  return transformDeposit(response);
+}
+
+/**
+ * Cancel pending deposit order
+ */
+export async function cancelDeposit(orderId: string): Promise<void> {
+  await apiRequest(`/deposits/${orderId}`, {
+    method: "DELETE",
   });
 }
 
-// Get deposit order status
-export async function getDepositStatus(orderId: string): Promise<DepositOrder> {
-  return apiRequest<DepositOrder>(`/deposits/${orderId}`);
+// Backend history response
+interface BackendHistoryResponse {
+  orders: BackendDepositOrder[];
+  total: number;
 }
 
-// List user's deposit history
+/**
+ * Get deposit history
+ */
 export async function getDepositHistory(
-  page = 1,
   limit = 20,
-): Promise<{ orders: DepositOrder[]; total: number }> {
-  return apiRequest<{ orders: DepositOrder[]; total: number }>(
-    `/deposits?page=${page}&limit=${limit}`,
+  offset = 0,
+  status?: "pending" | "completed" | "cancelled" | "expired",
+): Promise<DepositHistoryResponse> {
+  let url = `/deposits/history?limit=${limit}&offset=${offset}`;
+  if (status) {
+    url += `&status=${status}`;
+  }
+  const response = await apiRequest<BackendHistoryResponse>(url);
+  return {
+    deposits: response.orders.map(transformDeposit),
+    total: response.total,
+  };
+}
+
+/**
+ * Get token history from deposits
+ */
+export async function getTokenHistory(
+  limit = 20,
+  offset = 0,
+): Promise<TokenHistoryResponse> {
+  return apiRequest<TokenHistoryResponse>(
+    `/deposits/tokens/history?limit=${limit}&offset=${offset}`,
   );
 }
 
-// Poll deposit status until completed or timeout
+/**
+ * Poll deposit status until completed, cancelled, or timeout
+ */
 export async function pollDepositStatus(
   orderId: string,
   intervalMs = 3000,
@@ -93,9 +297,9 @@ export async function pollDepositStatus(
   const startTime = Date.now();
 
   while (Date.now() - startTime < timeoutMs) {
-    const order = await getDepositStatus(orderId);
+    const order = await getDeposit(orderId);
 
-    if (order.status === "completed" || order.status === "failed") {
+    if (order.status === "completed" || order.status === "cancelled" || order.status === "expired") {
       return order;
     }
 
