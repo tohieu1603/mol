@@ -27,11 +27,8 @@ export async function createGatewayRuntimeState(params: {
   port: number;
   controlUiEnabled: boolean;
   controlUiBasePath: string;
-<<<<<<< HEAD
-=======
   clientWebUiEnabled?: boolean;
   clientWebUiConfig?: { operisApiUrl?: string; gatewayToken?: string };
->>>>>>> origin/main
   openAiChatCompletionsEnabled: boolean;
   openResponsesEnabled: boolean;
   openResponsesConfig?: import("../config/types.gateway.js").GatewayHttpResponsesConfig;
@@ -117,11 +114,8 @@ export async function createGatewayRuntimeState(params: {
       canvasHost,
       controlUiEnabled: params.controlUiEnabled,
       controlUiBasePath: params.controlUiBasePath,
-<<<<<<< HEAD
-=======
       clientWebUiEnabled: params.clientWebUiEnabled,
       clientWebUiConfig: params.clientWebUiConfig,
->>>>>>> origin/main
       openAiChatCompletionsEnabled: params.openAiChatCompletionsEnabled,
       openResponsesEnabled: params.openResponsesEnabled,
       openResponsesConfig: params.openResponsesConfig,

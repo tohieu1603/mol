@@ -13,10 +13,7 @@ import { loadConfig } from "../config/config.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { handleSlackHttpRequest } from "../slack/http/index.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
-<<<<<<< HEAD
-=======
 import { handleClientWebUiRequest, type ClientWebUiConfig } from "./client-web-ui.js";
->>>>>>> origin/main
 import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
 import {
   extractHookToken,
@@ -209,11 +206,8 @@ export function createGatewayHttpServer(opts: {
   canvasHost: CanvasHostHandler | null;
   controlUiEnabled: boolean;
   controlUiBasePath: string;
-<<<<<<< HEAD
-=======
   clientWebUiEnabled?: boolean;
   clientWebUiConfig?: ClientWebUiConfig;
->>>>>>> origin/main
   openAiChatCompletionsEnabled: boolean;
   openResponsesEnabled: boolean;
   openResponsesConfig?: import("../config/types.gateway.js").GatewayHttpResponsesConfig;
@@ -226,11 +220,8 @@ export function createGatewayHttpServer(opts: {
     canvasHost,
     controlUiEnabled,
     controlUiBasePath,
-<<<<<<< HEAD
-=======
     clientWebUiEnabled,
     clientWebUiConfig,
->>>>>>> origin/main
     openAiChatCompletionsEnabled,
     openResponsesEnabled,
     openResponsesConfig,
@@ -303,13 +294,10 @@ export function createGatewayHttpServer(opts: {
         )
           return;
       }
-<<<<<<< HEAD
-=======
       // Client Web UI at /client path
       if (clientWebUiEnabled) {
         if (handleClientWebUiRequest(req, res, clientWebUiConfig)) return;
       }
->>>>>>> origin/main
 
       res.statusCode = 404;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");

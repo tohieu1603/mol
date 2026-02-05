@@ -13,10 +13,7 @@ import {
 } from "./control-ui-shared.js";
 
 const ROOT_PREFIX = "/";
-<<<<<<< HEAD
-=======
 const ADMIN_PREFIX = "/admin";
->>>>>>> origin/main
 
 export type ControlUiRequestOptions = {
   basePath?: string;
@@ -286,27 +283,18 @@ export function handleControlUiHttpRequest(
   const uiPath =
     basePath && pathname.startsWith(`${basePath}/`) ? pathname.slice(basePath.length) : pathname;
 
-<<<<<<< HEAD
-  const rel = (() => {
-    if (uiPath === ROOT_PREFIX) return "";
-=======
   // Handle /admin path for Operis admin panel
   const isAdminPath = uiPath === ADMIN_PREFIX || uiPath.startsWith(`${ADMIN_PREFIX}/`);
 
   const rel = (() => {
     if (uiPath === ROOT_PREFIX) return "";
     if (isAdminPath) return ""; // Will serve operis.html
->>>>>>> origin/main
     const assetsIndex = uiPath.indexOf("/assets/");
     if (assetsIndex >= 0) return uiPath.slice(assetsIndex + 1);
     return uiPath.slice(1);
   })();
   const requested = rel && !rel.endsWith("/") ? rel : `${rel}index.html`;
-<<<<<<< HEAD
-  const fileRel = requested || "index.html";
-=======
   const fileRel = isAdminPath ? "operis.html" : requested || "index.html";
->>>>>>> origin/main
   if (!isSafeRelativePath(fileRel)) {
     respondNotFound(res);
     return true;
@@ -331,16 +319,6 @@ export function handleControlUiHttpRequest(
     return true;
   }
 
-<<<<<<< HEAD
-  // SPA fallback (client-side router): serve index.html for unknown paths.
-  const fallbackPath = path.join(root, "index.html");
-  if (fs.existsSync(fallbackPath)) {
-    serveIndexHtml(res, fallbackPath, {
-      basePath,
-      config: opts?.config,
-      agentId: opts?.agentId,
-    });
-=======
   // SPA fallback (client-side router): serve index.html or operis.html for unknown paths.
   const fallbackFile = isAdminPath ? "operis.html" : "index.html";
   const fallbackPath = path.join(root, fallbackFile);
@@ -354,7 +332,6 @@ export function handleControlUiHttpRequest(
         agentId: opts?.agentId,
       });
     }
->>>>>>> origin/main
     return true;
   }
 

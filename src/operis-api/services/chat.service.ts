@@ -13,14 +13,9 @@ import { tokenService } from "./token.service.js";
 import { usersRepo, chatMessagesRepo } from "../../db/index.js";
 import { resolveSessionTranscriptsDir } from "../../config/sessions.js";
 
-<<<<<<< HEAD
-const GATEWAY_URL = process.env.GATEWAY_URL || "admin.operis.vn";
-const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "";
-=======
 // Default gateway (fallback if user has no custom gateway)
 const DEFAULT_GATEWAY_URL = process.env.GATEWAY_URL || "";
 const DEFAULT_GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || "";
->>>>>>> origin/main
 const CHAT_TIMEOUT_MS = 120_000;
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -63,19 +58,10 @@ interface ChatResult {
 
 class ChatService {
   async sendMessage(userId: string, message: string, conversationId?: string): Promise<ChatResult> {
-<<<<<<< HEAD
-    if (!GATEWAY_TOKEN) {
-      throw Errors.serviceUnavailable("Chat");
-    }
-
-=======
->>>>>>> origin/main
     const user = await usersRepo.getUserById(userId);
     if (!user) throw Errors.notFound("User");
     if (!user.is_active) throw Errors.accountDeactivated();
 
-<<<<<<< HEAD
-=======
     // Get gateway config: user's custom gateway or fallback to default
     const gatewayUrl = user.gateway_url || DEFAULT_GATEWAY_URL;
     const gatewayToken = user.gateway_token || DEFAULT_GATEWAY_TOKEN;
@@ -84,7 +70,6 @@ class ChatService {
       throw Errors.serviceUnavailable("Gateway not configured");
     }
 
->>>>>>> origin/main
     const convId = conversationId || this.generateConversationId();
     const sessionKey = `operis:${convId}`;
 
@@ -99,13 +84,8 @@ class ChatService {
 
     history.push({ role: "user", content: message });
 
-<<<<<<< HEAD
-    // Call Gateway and get response text
-    const { text, chatId } = await this.callGateway(history, sessionKey);
-=======
     // Call user's gateway and get response
     const { text, chatId } = await this.callGateway(history, sessionKey, gatewayUrl, gatewayToken);
->>>>>>> origin/main
 
     // Get full response with usage from session transcript
     const aiResponse = await this.getResponseFromTranscript(chatId, text);
@@ -147,27 +127,17 @@ class ChatService {
   private async callGateway(
     messages: ChatMessage[],
     sessionKey: string,
-<<<<<<< HEAD
-=======
     gatewayUrl: string,
     gatewayToken: string,
->>>>>>> origin/main
   ): Promise<{ text: string; chatId: string }> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
 
     try {
-<<<<<<< HEAD
-      const response = await fetch(`${GATEWAY_URL}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GATEWAY_TOKEN}`,
-=======
       const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${gatewayToken}`,
->>>>>>> origin/main
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
