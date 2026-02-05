@@ -354,14 +354,11 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-<<<<<<< HEAD
   position: relative;
 }
 
 .content--no-scroll {
   overflow: hidden;
-=======
->>>>>>> origin/main
 }
 
 :root[data-theme="light"] .content {

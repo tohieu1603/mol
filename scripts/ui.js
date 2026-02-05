@@ -7,11 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
-<<<<<<< HEAD
 const uiDir = path.join(repoRoot, "client-web");
-=======
-const uiDir = path.join(repoRoot, "ui");
->>>>>>> origin/main
 
 function usage() {
   // keep this tiny; it's invoked from npm scripts too

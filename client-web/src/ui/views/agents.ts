@@ -7,9 +7,18 @@ import type {
   AgentIdentityResult,
   AgentFileEntry,
   AgentsFilesListResult,
+  ChannelsStatusSnapshot,
+  CronJob,
+  CronStatus,
 } from "../agent-types";
 
-export type AgentsPanel = "overview" | "files" | "tools" | "skills";
+export type AgentsPanel =
+  | "overview"
+  | "files"
+  | "tools"
+  | "skills"
+  | "cron"
+  | "channels";
 
 export type AgentsProps = {
   loading: boolean;
@@ -17,6 +26,12 @@ export type AgentsProps = {
   agentsList: AgentsListResult | null;
   selectedAgentId: string | null;
   activePanel: AgentsPanel;
+  // Config state
+  configForm: Record<string, unknown> | null;
+  configLoading: boolean;
+  configSaving: boolean;
+  configDirty: boolean;
+  // Files state
   agentFilesLoading: boolean;
   agentFilesError: string | null;
   agentFilesList: AgentsFilesListResult | null;
@@ -24,6 +39,18 @@ export type AgentsProps = {
   agentFileContents: Record<string, string>;
   agentFileDrafts: Record<string, string>;
   agentFileSaving: boolean;
+  // Identity state
+  agentIdentityById: Record<string, AgentIdentityResult>;
+  // Channels state
+  channelsLoading: boolean;
+  channelsError: string | null;
+  channelsSnapshot: ChannelsStatusSnapshot | null;
+  // Cron state
+  cronLoading: boolean;
+  cronStatus: CronStatus | null;
+  cronJobs: CronJob[];
+  cronError: string | null;
+  // Callbacks
   onRefresh: () => void;
   onSelectAgent: (agentId: string) => void;
   onSelectPanel: (panel: AgentsPanel) => void;
@@ -32,6 +59,12 @@ export type AgentsProps = {
   onFileDraftChange: (name: string, content: string) => void;
   onFileReset: (name: string) => void;
   onFileSave: (name: string) => void;
+  onConfigReload: () => void;
+  onConfigSave: () => void;
+  onModelChange: (agentId: string, modelId: string | null) => void;
+  onModelFallbacksChange: (agentId: string, fallbacks: string[]) => void;
+  onChannelsRefresh: () => void;
+  onCronRefresh: () => void;
 };
 
 function normalizeAgentLabel(agent: Agent) {
