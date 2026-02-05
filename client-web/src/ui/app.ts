@@ -92,6 +92,16 @@ import {
   type TypeUsage,
   type UsageStats,
 } from "./analytics-api";
+import {
+  getPricing,
+  createDeposit,
+  getPendingDeposit,
+  getDeposit,
+  cancelDeposit,
+  getDepositHistory,
+  type PricingTier,
+  type DepositOrder,
+} from "./deposits-api";
 
 // Register custom components
 import "./components/operis-input";
@@ -187,37 +197,25 @@ export class OperisApp extends LitElement {
   @state() workflowRuns: Array<{ ts: number; status: string; summary?: string; durationMs?: number; error?: string }> = [];
   @state() workflowRunsLoading = false;
 
-  // Billing state
-  @state() billingCreditBalance = 80;
-  @state() billingSelectedPackage = 1;
+  // Billing state (token balance comes from currentUser.token_balance)
+  @state() billingSelectedPackage = 0;
   @state() billingAutoTopUp = false;
+  @state() billingPricingTiers: PricingTier[] = [];
+  @state() billingPricingLoading = false;
+  @state() billingPendingOrder: DepositOrder | null = null;
+  @state() billingDepositHistory: DepositOrder[] = [];
+  @state() billingHistoryLoading = false;
+  @state() billingBuyLoading = false;
+  @state() billingCheckingTransaction = false;
+  @state() billingShowQrModal = false;
   @state() billingApiKeys: Array<{
     id: string;
     name: string;
     key: string;
     createdAt: number;
-  }> = [
-    {
-      id: "1",
-      name: "Production API",
-      key: "sk-...abc123",
-      createdAt: Date.now() - 86400000 * 7,
-    },
-    {
-      id: "2",
-      name: "Development",
-      key: "sk-...xyz789",
-      createdAt: Date.now() - 86400000 * 2,
-    },
-  ];
+  }> = [];
   @state() billingShowCreateKeyModal = false;
   @state() billingNewKeyName = "";
-  // QR Payment state
-  @state() billingShowQrModal = false;
-  @state() billingQrTransactionId = "";
-  @state() billingQrImageUrl = "";
-  @state() billingQrPaymentStatus: "pending" | "success" | "failed" = "pending";
-  @state() billingQrStatusMessage = "";
 
   // Channels state
   @state() channels: ChannelStatus[] = [];
@@ -338,6 +336,10 @@ export class OperisApp extends LitElement {
       } else if (initialTab === "settings") {
         this.loadUserProfile();
         this.loadChannels();
+      } else if (initialTab === "analytics") {
+        this.loadAnalytics();
+      } else if (initialTab === "billing") {
+        this.loadBillingData();
       }
     }
 
@@ -378,8 +380,9 @@ export class OperisApp extends LitElement {
   }
 
   private handleChatStreamEvent(evt: ChatStreamEvent) {
-    // Only process events if we're actively sending a message
-    if (!this.chatSending) return;
+    // Only process events if we're actively sending AND using WebSocket streaming (not SSE)
+    // SSE streaming sets chatStreamingRunId = "sse-stream", skip WebSocket events in that case
+    if (!this.chatSending || this.chatStreamingRunId === "sse-stream") return;
 
     if (evt.state === "delta" && evt.message?.content) {
       // Extract text from content blocks
@@ -511,6 +514,8 @@ export class OperisApp extends LitElement {
       this.loadDevices();
     } else if (tab === "analytics") {
       this.loadAnalytics();
+    } else if (tab === "billing") {
+      this.loadBillingData();
     }
   }
 
@@ -685,25 +690,40 @@ export class OperisApp extends LitElement {
     this.scrollChatToBottom();
 
     try {
-      // Call real Operis Chat API - response will come through WebSocket streaming
+      // Call real Operis Chat API with SSE streaming
       const result = await sendChatMessage(
         userMessage,
         this.chatConversationId ?? undefined,
+        // onDelta - update streaming text as chunks arrive
+        (text: string) => {
+          this.chatStreamingText = text;
+          this.chatStreamingRunId = "sse-stream";
+        },
+        // onDone - mark streaming complete
+        () => {
+          // Will be handled below when result arrives
+        },
       );
 
       // Store conversation ID for context
       this.chatConversationId = result.conversationId;
 
-      // If no streaming happened (fallback), add the response directly
-      if (this.chatSending && !this.chatStreamingRunId) {
-        const assistantText = extractTextContent(result.content);
+      // Get final text before clearing state
+      const assistantText = extractTextContent(result.content) || this.chatStreamingText;
+
+      // Clear streaming state FIRST to stop showing streaming bubble
+      this.chatStreamingText = "";
+      this.chatStreamingRunId = null;
+      this.chatSending = false;
+
+      // Then add final message
+      if (assistantText) {
         this.chatMessages = [
           ...this.chatMessages,
           { role: "assistant", content: assistantText, timestamp: new Date() },
         ];
-        this.scrollChatToBottom();
-        this.chatSending = false;
       }
+      this.scrollChatToBottom();
     } catch (err) {
       const errorMsg =
         err instanceof Error ? err.message : "Không thể gửi tin nhắn";
@@ -884,60 +904,124 @@ export class OperisApp extends LitElement {
   }
 
   // Billing handlers
-  private handleBillingBuyCredits() {
-    const packages = [
-      { price: 5, credits: 1000 },
-      { price: 50, credits: 10000 },
-      { price: 500, credits: 105000 },
-      { price: 1250, credits: 275000 },
-    ];
-    const pkg = packages[this.billingSelectedPackage];
-    if (!pkg) return;
+  // Billing - Load data from API
+  private async loadBillingData() {
+    // Load pricing tiers
+    this.billingPricingLoading = true;
+    try {
+      const pricingResponse = await getPricing();
+      this.billingPricingTiers = pricingResponse.tiers;
+      // Select popular tier by default
+      const popularIndex = pricingResponse.tiers.findIndex((t) => t.popular);
+      if (popularIndex >= 0) this.billingSelectedPackage = popularIndex;
+    } catch (err) {
+      console.error("Failed to load pricing:", err);
+    } finally {
+      this.billingPricingLoading = false;
+    }
 
-    // Generate transaction ID and QR code
-    const txId = `TX${Date.now().toString(36).toUpperCase()}`;
-    this.billingQrTransactionId = txId;
-    // Placeholder QR image - in production this would be from payment API
-    this.billingQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`BANK_TRANSFER:${txId}:${pkg.price}`)}`;
-    this.billingQrPaymentStatus = "pending";
-    this.billingQrStatusMessage = "";
-    this.billingShowQrModal = true;
+    // Load pending order
+    try {
+      this.billingPendingOrder = await getPendingDeposit();
+    } catch {
+      this.billingPendingOrder = null;
+    }
+
+    // Load deposit history
+    this.loadBillingHistory();
+  }
+
+  private async loadBillingHistory() {
+    this.billingHistoryLoading = true;
+    try {
+      const historyResponse = await getDepositHistory(20, 0);
+      this.billingDepositHistory = historyResponse.deposits;
+    } catch (err) {
+      console.error("Failed to load deposit history:", err);
+    } finally {
+      this.billingHistoryLoading = false;
+    }
+  }
+
+  private async handleBillingBuyTokens() {
+    const tier = this.billingPricingTiers[this.billingSelectedPackage];
+    if (!tier) return;
+
+    this.billingBuyLoading = true;
+    try {
+      // Backend expects tokenAmount, not tierId
+      const order = await createDeposit({ tokenAmount: tier.tokens });
+      this.billingPendingOrder = order;
+      this.billingShowQrModal = true;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Không thể tạo đơn nạp");
+    } finally {
+      this.billingBuyLoading = false;
+    }
   }
 
   private handleBillingCloseQrModal() {
     this.billingShowQrModal = false;
-    this.billingQrTransactionId = "";
-    this.billingQrImageUrl = "";
-    this.billingQrPaymentStatus = "pending";
-    this.billingQrStatusMessage = "";
   }
 
-  private handleBillingCheckTransaction() {
-    // Simulate checking transaction status - in production this would call payment API
-    const isSuccess = Math.random() > 0.5; // 50% chance for demo
+  private async handleBillingCheckTransaction() {
+    if (!this.billingPendingOrder) return;
 
-    if (isSuccess) {
-      this.billingQrPaymentStatus = "success";
-      const packages = [
-        { price: 5, credits: 1000 },
-        { price: 50, credits: 10000 },
-        { price: 500, credits: 105000 },
-        { price: 1250, credits: 275000 },
-      ];
-      const pkg = packages[this.billingSelectedPackage];
-      if (pkg) {
-        this.billingCreditBalance += pkg.credits;
+    // Open modal to show payment info
+    this.billingShowQrModal = true;
+
+    this.billingCheckingTransaction = true;
+    try {
+      const order = await getDeposit(this.billingPendingOrder.id);
+      this.billingPendingOrder = order;
+
+      if (order.status === "completed") {
+        alert("Giao dịch thành công! Token đã được cộng vào tài khoản.");
+        this.billingShowQrModal = false;
+        this.billingPendingOrder = null;
+        // Refresh user to get updated balance
+        const user = await restoreSession();
+        if (user) this.currentUser = user;
+        // Refresh history
+        this.loadBillingHistory();
+      } else if (order.status === "cancelled" || order.status === "expired") {
+        alert("Đơn nạp đã bị hủy hoặc hết hạn.");
+        this.billingShowQrModal = false;
+        this.billingPendingOrder = null;
+        this.loadBillingHistory();
       }
-      this.billingQrStatusMessage = "Giao dịch thành công!";
-    } else {
-      this.billingQrPaymentStatus = "pending";
-      this.billingQrStatusMessage =
-        "Bạn cần hoàn thành thanh toán của mình trước. Nếu thanh toán không thành công, liên hệ với fanpage hoặc đường dây nóng để được hỗ trợ.";
+    } catch (err) {
+      console.error("Failed to check transaction:", err);
+    } finally {
+      this.billingCheckingTransaction = false;
+    }
+  }
+
+  private async handleBillingCancelPending() {
+    if (!this.billingPendingOrder) return;
+
+    const confirmed = await showConfirm({
+      title: "Hủy đơn nạp?",
+      message: "Bạn có chắc muốn hủy đơn nạp này?",
+      confirmText: "Hủy đơn",
+      cancelText: "Không",
+      variant: "danger",
+    });
+
+    if (confirmed) {
+      try {
+        await cancelDeposit(this.billingPendingOrder.id);
+        this.billingPendingOrder = null;
+        this.billingShowQrModal = false;
+        this.loadBillingHistory();
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Không thể hủy đơn");
+      }
     }
   }
 
   private handleBillingRefreshHistory() {
-    alert("Đã làm mới lịch sử giao dịch");
+    this.loadBillingHistory();
   }
 
   private handleBillingCreateKey() {
@@ -1532,7 +1616,7 @@ export class OperisApp extends LitElement {
         return renderAnalytics({
           loading: this.analyticsLoading,
           error: this.analyticsError,
-          tokenBalance: this.billingCreditBalance,
+          tokenBalance: this.currentUser?.token_balance ?? 0,
           stats: this.analyticsStats,
           dailyUsage: this.analyticsDailyUsage,
           typeUsage: this.analyticsTypeUsage,
@@ -1542,22 +1626,30 @@ export class OperisApp extends LitElement {
         });
       case "billing":
         return renderBilling({
-          creditBalance: this.billingCreditBalance,
+          creditBalance: this.currentUser?.token_balance ?? 0,
+          // Pricing tiers from API
+          pricingTiers: this.billingPricingTiers,
+          pricingLoading: this.billingPricingLoading,
           selectedPackage: this.billingSelectedPackage,
-          onSelectPackage: (i) => (this.billingSelectedPackage = i),
-          onBuyCredits: () => this.handleBillingBuyCredits(),
-          // QR Payment modal props
+          onSelectPackage: (i: number) => { this.billingSelectedPackage = i; this.requestUpdate(); },
+          // Buy tokens
+          onBuyTokens: () => this.handleBillingBuyTokens(),
+          buyLoading: this.billingBuyLoading,
+          // Pending order
+          pendingOrder: this.billingPendingOrder,
+          onCancelPending: () => this.handleBillingCancelPending(),
+          // QR Modal
           showQrModal: this.billingShowQrModal,
-          qrTransactionId: this.billingQrTransactionId,
-          qrImageUrl: this.billingQrImageUrl,
-          qrPaymentStatus: this.billingQrPaymentStatus,
-          qrStatusMessage: this.billingQrStatusMessage,
           onCloseQrModal: () => this.handleBillingCloseQrModal(),
           onCheckTransaction: () => this.handleBillingCheckTransaction(),
+          checkingTransaction: this.billingCheckingTransaction,
           // Auto top-up
           autoTopUp: this.billingAutoTopUp,
           onToggleAutoTopUp: () =>
             (this.billingAutoTopUp = !this.billingAutoTopUp),
+          // History
+          depositHistory: this.billingDepositHistory,
+          historyLoading: this.billingHistoryLoading,
           onRefreshHistory: () => this.handleBillingRefreshHistory(),
           // API Keys
           apiKeys: this.billingApiKeys,

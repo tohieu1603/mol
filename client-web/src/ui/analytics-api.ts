@@ -11,64 +11,70 @@
 
 import { apiRequest } from "./auth-api";
 
-// Types matching backend response
-export interface TokenUsageStats {
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  costTokens: number;
-  totalRequests: number;
-  avgTokensPerRequest: number;
+// =============================================================================
+// Backend Response Types (snake_case as returned by API)
+// =============================================================================
+
+export interface ApiStats {
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost_tokens: number;
 }
 
-export interface TokenUsageByType {
-  requestType: string;
-  totalTokens: number;
-  totalRequests: number;
-  percentage: number;
+export interface ApiByType {
+  request_type: string;
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost_tokens: number;
 }
 
-export interface TokenUsageByDate {
+export interface ApiDaily {
   date: string;
-  totalTokens: number;
-  totalRequests: number;
-}
-
-// Response types
-export interface UsageOverviewResponse {
-  period: string;
-  current: TokenUsageStats;
-  previous: TokenUsageStats;
-  byType: TokenUsageByType[];
-  daily: TokenUsageByDate[];
+  total_requests: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_cost_tokens: number;
 }
 
 export interface DailyUsageResponse {
   period: string;
-  stats: TokenUsageStats;
-  byType: TokenUsageByType[];
-  daily: TokenUsageByDate[];
+  stats: ApiStats;
+  byType: ApiByType[];
+  daily: ApiDaily[];
+}
+
+export interface UsageOverviewResponse {
+  period: string;
+  current: ApiStats;
+  previous: ApiStats;
+  byType: ApiByType[];
+  daily: ApiDaily[];
 }
 
 export interface RangeUsageResponse {
   period: string;
   startDate: string;
   endDate: string;
-  stats: TokenUsageStats;
-  byType: TokenUsageByType[];
-  daily: TokenUsageByDate[];
+  stats: ApiStats;
+  byType: ApiByType[];
+  daily: ApiDaily[];
 }
 
 export interface UsageRecord {
   id: string;
-  requestType: string;
-  requestId?: string;
+  request_type: string;
+  request_id?: string;
   model: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  costTokens: number;
-  createdAt: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  cost_tokens: number;
+  created_at: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -79,11 +85,16 @@ export interface HistoryResponse {
   offset: number;
 }
 
-// Simplified types for UI
+// =============================================================================
+// UI-friendly Types (camelCase for frontend)
+// =============================================================================
+
 export interface DailyUsage {
   date: string;
   tokensUsed: number;
   requests: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 export interface TypeUsage {
@@ -100,9 +111,14 @@ export interface UsageStats {
   totalRequests: number;
 }
 
-// ==============================================================================
-// User Analytics API
-// ==============================================================================
+// Legacy exports for compatibility
+export type TokenUsageStats = ApiStats;
+export type TokenUsageByType = ApiByType;
+export type TokenUsageByDate = ApiDaily;
+
+// =============================================================================
+// API Functions
+// =============================================================================
 
 /**
  * Get user's usage overview
@@ -148,32 +164,37 @@ export async function getUsageHistory(
   );
 }
 
-// ==============================================================================
-// Helper Functions - Transform API response to UI-friendly format
-// ==============================================================================
+// =============================================================================
+// Transform Functions - Convert API response to UI-friendly format
+// =============================================================================
 
-export function transformDailyUsage(daily: TokenUsageByDate[]): DailyUsage[] {
+export function transformDailyUsage(daily: ApiDaily[]): DailyUsage[] {
   return daily.map((d) => ({
     date: d.date,
-    tokensUsed: d.totalTokens,
-    requests: d.totalRequests,
+    tokensUsed: d.total_tokens,
+    requests: d.total_requests,
+    inputTokens: d.total_input_tokens,
+    outputTokens: d.total_output_tokens,
   }));
 }
 
-export function transformTypeUsage(byType: TokenUsageByType[]): TypeUsage[] {
+export function transformTypeUsage(byType: ApiByType[]): TypeUsage[] {
+  // Calculate total for percentage
+  const totalTokens = byType.reduce((sum, t) => sum + t.total_tokens, 0);
+
   return byType.map((t) => ({
-    type: t.requestType,
-    tokensUsed: t.totalTokens,
-    requests: t.totalRequests,
-    percentage: t.percentage,
+    type: t.request_type,
+    tokensUsed: t.total_tokens,
+    requests: t.total_requests,
+    percentage: totalTokens > 0 ? (t.total_tokens / totalTokens) * 100 : 0,
   }));
 }
 
-export function transformStats(stats: TokenUsageStats): UsageStats {
+export function transformStats(stats: ApiStats): UsageStats {
   return {
-    totalTokens: stats.totalTokens,
-    inputTokens: stats.inputTokens,
-    outputTokens: stats.outputTokens,
-    totalRequests: stats.totalRequests,
+    totalTokens: stats.total_tokens,
+    inputTokens: stats.total_input_tokens,
+    outputTokens: stats.total_output_tokens,
+    totalRequests: stats.total_requests,
   };
 }

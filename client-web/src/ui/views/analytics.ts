@@ -411,7 +411,7 @@ export function renderAnalytics(props: AnalyticsProps) {
         <div class="stat-card">
           <div class="stat-label">${icons.creditCard} Số dư</div>
           <div class="stat-value balance">${formatNumber(tokenBalance)}</div>
-          <div class="stat-sub">credits còn lại</div>
+          <div class="stat-sub">tokens còn lại</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">${icons.zap} Tokens đã dùng</div>
