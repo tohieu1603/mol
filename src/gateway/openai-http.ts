@@ -41,6 +41,9 @@ type OpenAiChatCompletionRequest = {
   stream?: unknown;
   messages?: unknown;
   user?: unknown;
+  stream_options?: {
+    include_usage?: boolean;
+  };
 };
 
 function writeSse(res: ServerResponse, data: unknown) {
@@ -190,6 +193,8 @@ export async function handleOpenAiHttpRequest(
   const stream = Boolean(payload.stream);
   const model = typeof payload.model === "string" ? payload.model : "moltbot";
   const user = typeof payload.user === "string" ? payload.user : undefined;
+  // Always include usage for streaming (default true), can be disabled with include_usage=false
+  const includeUsage = stream ? (payload.stream_options?.include_usage !== false) : false;
 
   const agentId = resolveAgentIdForRequest({ req, model });
   const sessionKey = resolveOpenAiSessionKey({ req, agentId, user });
@@ -370,10 +375,14 @@ export async function handleOpenAiHttpRequest(
     if (evt.stream === "lifecycle") {
       const phase = evt.data?.phase;
       if (phase === "end" || phase === "error") {
-        closed = true;
-        unsubscribe();
-        writeDone(res);
-        res.end();
+        // If include_usage is enabled, let the finally block handle closing
+        // so it can send the usage chunk first
+        if (!includeUsage) {
+          closed = true;
+          unsubscribe();
+          writeDone(res);
+          res.end();
+        }
       }
     }
   });
@@ -384,8 +393,9 @@ export async function handleOpenAiHttpRequest(
   });
 
   void (async () => {
+    let result: unknown = null;
     try {
-      const result = await agentCommand(
+      result = await agentCommand(
         {
           message: prompt.message,
           extraSystemPrompt: prompt.extraSystemPrompt,
@@ -458,9 +468,85 @@ export async function handleOpenAiHttpRequest(
         data: { phase: "error" },
       });
     } finally {
+      console.log("[openai-http] finally block: closed=", closed, "includeUsage=", includeUsage);
       if (!closed) {
         closed = true;
         unsubscribe();
+
+        // Send usage chunk if stream_options.include_usage is true
+        if (includeUsage) {
+          console.log("[openai-http] Sending usage chunk...");
+          let usage = { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+          try {
+            // Try getting usage from result first
+            const typedResult = result as {
+              meta?: {
+                agentMeta?: {
+                  usage?: {
+                    input?: number;
+                    output?: number;
+                    cacheRead?: number;
+                    total?: number;
+                  };
+                };
+              };
+            } | null;
+            const resultUsage = typedResult?.meta?.agentMeta?.usage;
+            if (resultUsage) {
+              const inputTokens = (resultUsage.input ?? 0) + (resultUsage.cacheRead ?? 0);
+              const outputTokens = resultUsage.output ?? 0;
+              usage = {
+                prompt_tokens: inputTokens,
+                completion_tokens: outputTokens,
+                total_tokens: resultUsage.total ?? inputTokens + outputTokens,
+              };
+            } else {
+              // Fall back to reading from transcript file
+              const storePath = resolveStorePath();
+              const store = loadSessionStore(storePath);
+              const session = store[sessionKey];
+              const transcriptsDir = resolveSessionTranscriptsDir();
+              const transcriptFile = session?.sessionId
+                ? path.join(transcriptsDir, `${session.sessionId}.jsonl`)
+                : null;
+
+              if (transcriptFile && fs.existsSync(transcriptFile)) {
+                const lines = fs.readFileSync(transcriptFile, "utf-8").trim().split("\n");
+                for (let i = lines.length - 1; i >= 0; i--) {
+                  try {
+                    const entry = JSON.parse(lines[i]);
+                    if (entry.role === "assistant" && entry.usage) {
+                      const u = entry.usage;
+                      const inputTokens = (u.input ?? 0) + (u.cacheRead ?? 0);
+                      const outputTokens = u.output ?? 0;
+                      usage = {
+                        prompt_tokens: inputTokens,
+                        completion_tokens: outputTokens,
+                        total_tokens: u.total ?? inputTokens + outputTokens,
+                      };
+                      break;
+                    }
+                  } catch {
+                    /* skip invalid lines */
+                  }
+                }
+              }
+            }
+          } catch {
+            // Ignore errors, use default usage
+          }
+
+          // Send final chunk with usage (OpenAI format: choices is empty array)
+          writeSse(res, {
+            id: runId,
+            object: "chat.completion.chunk",
+            created: Math.floor(Date.now() / 1000),
+            model,
+            choices: [],
+            usage,
+          });
+        }
+
         writeDone(res);
         res.end();
       }
