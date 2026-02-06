@@ -19,7 +19,7 @@ import {
 import { t } from "./i18n";
 import { renderChat } from "./views/chat";
 import { renderBilling } from "./views/billing";
-import { renderLogs } from "./views/logs";
+import { renderLogs, type LogEntry } from "./views/logs";
 import { renderWorkflow } from "./views/workflow";
 import { renderDocs } from "./views/docs";
 import { renderLogin } from "./views/login";
@@ -197,6 +197,13 @@ export class OperisApp extends LitElement {
   @state() workflowRuns: Array<{ ts: number; status: string; summary?: string; durationMs?: number; error?: string }> = [];
   @state() workflowRunsLoading = false;
 
+  // Logs state
+  @state() logsEntries: LogEntry[] = [];
+  @state() logsLoading = false;
+  @state() logsError: string | null = null;
+  @state() logsSearchQuery = "";
+  @state() logsHasMore = false;
+
   // Billing state (token balance comes from currentUser.token_balance)
   @state() billingSelectedPackage = 0;
   @state() billingAutoTopUp = false;
@@ -205,9 +212,15 @@ export class OperisApp extends LitElement {
   @state() billingPendingOrder: DepositOrder | null = null;
   @state() billingDepositHistory: DepositOrder[] = [];
   @state() billingHistoryLoading = false;
+  @state() billingHistoryPage = 1;
+  @state() billingHistoryTotal = 0;
+  private readonly billingHistoryPageSize = 5;
   @state() billingBuyLoading = false;
   @state() billingCheckingTransaction = false;
   @state() billingShowQrModal = false;
+  @state() billingShowDetailModal = false;
+  @state() billingSelectedDeposit: import("./deposits-api").DepositOrder | null = null;
+  @state() billingDetailLoading = false;
   @state() billingApiKeys: Array<{
     id: string;
     name: string;
@@ -391,13 +404,9 @@ export class OperisApp extends LitElement {
         .map((block) => block.text)
         .join("");
 
-      const isFirstDelta = !this.chatStreamingRunId;
       this.chatStreamingText = text;
       this.chatStreamingRunId = evt.runId;
-      // Only scroll on first delta to avoid janky continuous scrolling
-      if (isFirstDelta) {
-        this.scrollChatToBottom();
-      }
+      // Don't scroll during streaming - user message stays at top
     } else if (evt.state === "final") {
       // Final message received - add to messages and clear streaming state
       const finalText = evt.message?.content
@@ -415,7 +424,7 @@ export class OperisApp extends LitElement {
       this.chatStreamingText = "";
       this.chatStreamingRunId = null;
       this.chatSending = false;
-      this.scrollChatToBottom();
+      // Don't scroll here - user message is already at top
     } else if (evt.state === "error") {
       // Error occurred - show error message
       const errorMsg = evt.errorMessage || "Có lỗi xảy ra khi xử lý tin nhắn";
@@ -426,7 +435,7 @@ export class OperisApp extends LitElement {
       this.chatStreamingText = "";
       this.chatStreamingRunId = null;
       this.chatSending = false;
-      this.scrollChatToBottom();
+      // Don't scroll here - user message is already at top
     }
   }
 
@@ -448,12 +457,32 @@ export class OperisApp extends LitElement {
           this.loadChatHistory();
         }
       } else {
-        // No session, stop loading on chat page
-        this.chatInitializing = false;
+        // No session - reset login state
+        this.resetToLoggedOut();
       }
     } catch {
-      // Session restore failed, user needs to login
-      this.chatInitializing = false;
+      // Session restore failed - reset login state
+      this.resetToLoggedOut();
+    }
+  }
+
+  private resetToLoggedOut() {
+    this.currentUser = null;
+    // Reset chat state
+    this.chatMessages = [];
+    this.chatConversationId = null;
+    this.chatHistoryLoaded = false;
+    this.chatInitializing = false;
+    // Reset settings
+    this.applySettings({
+      ...this.settings,
+      isLoggedIn: false,
+      username: null,
+    });
+    // Redirect to login if on protected page
+    const protectedTabs = ["chat", "workflow", "channels", "settings", "agents", "skills", "nodes", "analytics", "billing"];
+    if (protectedTabs.includes(this.tab)) {
+      this.setTab("login");
     }
   }
 
@@ -516,6 +545,8 @@ export class OperisApp extends LitElement {
       this.loadAnalytics();
     } else if (tab === "billing") {
       this.loadBillingData();
+    } else if (tab === "logs") {
+      this.loadLogs();
     }
   }
 
@@ -555,27 +586,61 @@ export class OperisApp extends LitElement {
     }
   }
 
-  private scrollChatToBottom() {
-    // Wait for DOM update then scroll to last user message
-    requestAnimationFrame(() => {
-      const messagesEl = this.renderRoot.querySelector(
-        ".gc-messages",
-      ) as HTMLElement;
-      if (!messagesEl) return;
+  private updateDynamicSpacer(active: boolean = true) {
+    const messagesEl = this.renderRoot.querySelector(".gc-messages") as HTMLElement;
+    const spacer = this.renderRoot.querySelector(".gc-scroll-spacer") as HTMLElement;
+    if (!messagesEl || !spacer) return;
 
-      // Find the last user message element
-      const userMessages = messagesEl.querySelectorAll(".gc-message--user");
-      const lastUserMsg = userMessages[userMessages.length - 1] as HTMLElement;
+    if (!active) {
+      spacer.style.height = "0px";
+      return;
+    }
 
-      if (lastUserMsg) {
-        // Calculate scroll position with offset to avoid being hidden by fade/header
-        const messageTop = lastUserMsg.offsetTop;
-        messagesEl.scrollTop = Math.max(0, messageTop - 40);
-      } else {
-        // Fallback to bottom if no user messages
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-      }
-    });
+    // Find last user message to calculate exact spacer needed
+    const userMessages = messagesEl.querySelectorAll(".gc-message--user");
+    const lastUserMsg = userMessages[userMessages.length - 1] as HTMLElement;
+    if (!lastUserMsg) {
+      spacer.style.height = "0px";
+      return;
+    }
+
+    // Reset spacer to get true content height
+    spacer.style.height = "0px";
+
+    const viewportHeight = messagesEl.clientHeight;
+    const scrollPosition = lastUserMsg.offsetTop - 24; // where we want to scroll to
+    const contentHeight = messagesEl.scrollHeight;
+
+    // Spacer = just enough so scrollHeight = scrollPosition + viewportHeight
+    // This means maxScrollTop = scrollPosition (can scroll to user msg, but not beyond)
+    const neededScrollHeight = scrollPosition + viewportHeight;
+    const spacerHeight = Math.max(0, neededScrollHeight - contentHeight);
+    spacer.style.height = `${spacerHeight}px`;
+  }
+
+  private async scrollChatToBottom() {
+    await this.updateComplete;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    const messagesEl = this.renderRoot.querySelector(".gc-messages") as HTMLElement;
+    if (!messagesEl) return;
+
+    // Calculate and set exact spacer height
+    this.updateDynamicSpacer(true);
+
+    // Wait for layout update
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
+    // Find last user message and scroll it to top
+    const userMessages = messagesEl.querySelectorAll(".gc-message--user");
+    const lastUserMsg = userMessages[userMessages.length - 1] as HTMLElement;
+
+    if (lastUserMsg) {
+      const scrollPosition = lastUserMsg.offsetTop - 24;
+      messagesEl.scrollTop = Math.max(0, scrollPosition);
+    } else {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
   }
 
   private setTheme(mode: ThemeMode, context?: ThemeTransitionContext) {
@@ -659,17 +724,7 @@ export class OperisApp extends LitElement {
     } catch {
       // Ignore logout errors
     }
-    this.currentUser = null;
-    // Reset chat state
-    this.chatMessages = [];
-    this.chatConversationId = null;
-    this.chatHistoryLoaded = false;
-    this.applySettings({
-      ...this.settings,
-      isLoggedIn: false,
-      username: null,
-    });
-    this.setTab("login");
+    this.resetToLoggedOut();
   }
 
   private async handleSendMessage() {
@@ -698,6 +753,8 @@ export class OperisApp extends LitElement {
         (text: string) => {
           this.chatStreamingText = text;
           this.chatStreamingRunId = "sse-stream";
+          // Recalculate spacer as content grows (spacer shrinks to keep user msg at top, no extra whitespace)
+          this.updateDynamicSpacer(true);
         },
         // onDone - mark streaming complete
         () => {
@@ -723,7 +780,8 @@ export class OperisApp extends LitElement {
           { role: "assistant", content: assistantText, timestamp: new Date() },
         ];
       }
-      this.scrollChatToBottom();
+      // Collapse spacer after response done (remove whitespace)
+      this.updateDynamicSpacer(false);
     } catch (err) {
       const errorMsg =
         err instanceof Error ? err.message : "Không thể gửi tin nhắn";
@@ -755,7 +813,7 @@ export class OperisApp extends LitElement {
       this.chatStreamingText = "";
       this.chatStreamingRunId = null;
       this.chatSending = false;
-      this.scrollChatToBottom();
+      // Don't scroll - user message stays at top
     }
   }
 
@@ -931,16 +989,63 @@ export class OperisApp extends LitElement {
     this.loadBillingHistory();
   }
 
-  private async loadBillingHistory() {
-    this.billingHistoryLoading = true;
+  private async loadLogs() {
+    if (this.logsLoading) return;
+    this.logsLoading = true;
+    this.logsError = null;
+
     try {
-      const historyResponse = await getDepositHistory(20, 0);
+      // Fetch conversations from chat API
+      const { conversations } = await getConversations();
+
+      // Transform to LogEntry format
+      const entries: LogEntry[] = conversations.map((c) => ({
+        id: c.conversation_id,
+        date: c.last_message_at,
+        type: "chat" as const,
+        preview: c.preview || "(Cuộc hội thoại)",
+        messageCount: c.message_count,
+      }));
+
+      this.logsEntries = entries;
+      this.logsHasMore = false; // TODO: implement pagination
+    } catch (err) {
+      this.logsError = err instanceof Error ? err.message : "Không thể tải lịch sử";
+    } finally {
+      this.logsLoading = false;
+    }
+  }
+
+  private handleLogsSearchChange(query: string) {
+    this.logsSearchQuery = query;
+  }
+
+  private handleLogsItemClick(log: LogEntry) {
+    // Navigate to chat with this conversation
+    if (log.type === "chat") {
+      this.chatConversationId = log.id;
+      this.chatHistoryLoaded = false; // Force reload
+      this.setTab("chat");
+    }
+  }
+
+  private async loadBillingHistory(page = 1) {
+    this.billingHistoryLoading = true;
+    this.billingHistoryPage = page;
+    try {
+      const offset = (page - 1) * this.billingHistoryPageSize;
+      const historyResponse = await getDepositHistory(this.billingHistoryPageSize, offset);
       this.billingDepositHistory = historyResponse.deposits;
+      this.billingHistoryTotal = historyResponse.total;
     } catch (err) {
       console.error("Failed to load deposit history:", err);
     } finally {
       this.billingHistoryLoading = false;
     }
+  }
+
+  private handleBillingHistoryPageChange(page: number) {
+    this.loadBillingHistory(page);
   }
 
   private async handleBillingBuyTokens() {
@@ -949,10 +1054,10 @@ export class OperisApp extends LitElement {
 
     this.billingBuyLoading = true;
     try {
-      // Backend expects tokenAmount, not tierId
-      const order = await createDeposit({ tokenAmount: tier.tokens });
+      // Send tierId to backend
+      const order = await createDeposit({ tierId: tier.id });
       this.billingPendingOrder = order;
-      this.billingShowQrModal = true;
+      // Payment info now shows inline, no need to open modal
     } catch (err) {
       alert(err instanceof Error ? err.message : "Không thể tạo đơn nạp");
     } finally {
@@ -967,9 +1072,6 @@ export class OperisApp extends LitElement {
   private async handleBillingCheckTransaction() {
     if (!this.billingPendingOrder) return;
 
-    // Open modal to show payment info
-    this.billingShowQrModal = true;
-
     this.billingCheckingTransaction = true;
     try {
       const order = await getDeposit(this.billingPendingOrder.id);
@@ -977,7 +1079,6 @@ export class OperisApp extends LitElement {
 
       if (order.status === "completed") {
         alert("Giao dịch thành công! Token đã được cộng vào tài khoản.");
-        this.billingShowQrModal = false;
         this.billingPendingOrder = null;
         // Refresh user to get updated balance
         const user = await restoreSession();
@@ -986,7 +1087,6 @@ export class OperisApp extends LitElement {
         this.loadBillingHistory();
       } else if (order.status === "cancelled" || order.status === "expired") {
         alert("Đơn nạp đã bị hủy hoặc hết hạn.");
-        this.billingShowQrModal = false;
         this.billingPendingOrder = null;
         this.loadBillingHistory();
       }
@@ -1022,6 +1122,27 @@ export class OperisApp extends LitElement {
 
   private handleBillingRefreshHistory() {
     this.loadBillingHistory();
+  }
+
+  private async handleViewDepositDetail(deposit: import("./deposits-api").DepositOrder) {
+    // Open modal and fetch full details from API
+    this.billingSelectedDeposit = deposit;
+    this.billingShowDetailModal = true;
+    this.billingDetailLoading = true;
+
+    try {
+      const fullDeposit = await getDeposit(deposit.id);
+      this.billingSelectedDeposit = fullDeposit;
+    } catch (err) {
+      console.error("Failed to fetch deposit details:", err);
+    } finally {
+      this.billingDetailLoading = false;
+    }
+  }
+
+  private handleCloseDetailModal() {
+    this.billingShowDetailModal = false;
+    this.billingSelectedDeposit = null;
   }
 
   private handleBillingCreateKey() {
@@ -1650,7 +1771,16 @@ export class OperisApp extends LitElement {
           // History
           depositHistory: this.billingDepositHistory,
           historyLoading: this.billingHistoryLoading,
+          historyPage: this.billingHistoryPage,
+          historyTotalPages: Math.ceil(this.billingHistoryTotal / this.billingHistoryPageSize),
           onRefreshHistory: () => this.handleBillingRefreshHistory(),
+          onViewDepositDetail: (deposit) => this.handleViewDepositDetail(deposit),
+          onHistoryPageChange: (page) => this.handleBillingHistoryPageChange(page),
+          // Detail modal
+          showDetailModal: this.billingShowDetailModal,
+          selectedDeposit: this.billingSelectedDeposit,
+          detailLoading: this.billingDetailLoading,
+          onCloseDetailModal: () => this.handleCloseDetailModal(),
           // API Keys
           apiKeys: this.billingApiKeys,
           showCreateKeyModal: this.billingShowCreateKeyModal,
@@ -1666,7 +1796,16 @@ export class OperisApp extends LitElement {
           onDeleteKey: (id) => this.handleBillingDeleteKey(id),
         });
       case "logs":
-        return renderLogs({});
+        return renderLogs({
+          logs: this.logsEntries,
+          loading: this.logsLoading,
+          error: this.logsError,
+          searchQuery: this.logsSearchQuery,
+          onSearchChange: (q) => this.handleLogsSearchChange(q),
+          onLoadMore: () => this.loadLogs(),
+          onItemClick: (log) => this.handleLogsItemClick(log),
+          hasMore: this.logsHasMore,
+        });
       case "workflow":
         return renderWorkflow({
           workflows: this.workflows,

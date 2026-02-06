@@ -28,6 +28,7 @@ export const icons = {
   chevronDown: html`<svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>`,
   chevronUp: html`<svg viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>`,
   chevronRight: html`<svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>`,
+  chevronLeft: html`<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>`,
   arrowRight: html`<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`,
   plus: html`<svg viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`,
   clock: html`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,

@@ -9,7 +9,7 @@
  * - GET /analytics/usage/history?limit=50&offset=0
  */
 
-import { apiRequest } from "./auth-api";
+import apiClient, { getErrorMessage } from "./api-client";
 
 // =============================================================================
 // Backend Response Types (snake_case as returned by API)
@@ -127,7 +127,12 @@ export type TokenUsageByDate = ApiDaily;
 export async function getUsageOverview(
   period: "today" | "week" | "month" | "year" = "today",
 ): Promise<UsageOverviewResponse> {
-  return apiRequest<UsageOverviewResponse>(`/analytics/usage?period=${period}`);
+  try {
+    const response = await apiClient.get<UsageOverviewResponse>(`/analytics/usage?period=${period}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 /**
@@ -135,7 +140,12 @@ export async function getUsageOverview(
  * @param days - Number of days (1-90)
  */
 export async function getDailyUsage(days = 7): Promise<DailyUsageResponse> {
-  return apiRequest<DailyUsageResponse>(`/analytics/usage/daily?days=${days}`);
+  try {
+    const response = await apiClient.get<DailyUsageResponse>(`/analytics/usage/daily?days=${days}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 /**
@@ -147,9 +157,14 @@ export async function getRangeUsage(
   start: string,
   end: string,
 ): Promise<RangeUsageResponse> {
-  return apiRequest<RangeUsageResponse>(
-    `/analytics/usage/range?start=${start}&end=${end}`,
-  );
+  try {
+    const response = await apiClient.get<RangeUsageResponse>(
+      `/analytics/usage/range?start=${start}&end=${end}`,
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 /**
@@ -159,9 +174,14 @@ export async function getUsageHistory(
   limit = 50,
   offset = 0,
 ): Promise<HistoryResponse> {
-  return apiRequest<HistoryResponse>(
-    `/analytics/usage/history?limit=${limit}&offset=${offset}`,
-  );
+  try {
+    const response = await apiClient.get<HistoryResponse>(
+      `/analytics/usage/history?limit=${limit}&offset=${offset}`,
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 // =============================================================================
