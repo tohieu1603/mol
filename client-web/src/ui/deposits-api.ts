@@ -94,7 +94,10 @@ export interface DepositOrder {
 }
 
 export interface CreateDepositRequest {
-  tokenAmount: number;
+  // Option 1: By tier ID (e.g., "tier_starter", "tier_pro")
+  tierId?: string;
+  // Option 2: By VND amount
+  amount?: number;
 }
 
 export interface DepositHistoryResponse {
@@ -204,16 +207,30 @@ function transformDeposit(backend: BackendDepositOrder & Record<string, unknown>
 
 /**
  * Create deposit order
+ * @param request - Either { tierId: "tier_pro" } or { amount: 150000 }
  */
 export async function createDeposit(
   request: CreateDepositRequest,
 ): Promise<DepositOrder> {
-  // Send snake_case to backend
+  // Build request body - send tierId or amount
+  const body: Record<string, unknown> = {};
+  if (request.tierId) {
+    body.tierId = request.tierId;
+  } else if (request.amount) {
+    body.amount = request.amount;
+  }
+
   const response = await apiRequest<BackendDepositOrder>("/deposits", {
     method: "POST",
-    body: JSON.stringify({ token_amount: request.tokenAmount }),
+    body: JSON.stringify(body),
   });
   return transformDeposit(response);
+}
+
+// Backend pending response format
+interface BackendPendingResponse {
+  hasPending: boolean;
+  order: BackendDepositOrder | null;
 }
 
 /**
@@ -221,12 +238,10 @@ export async function createDeposit(
  */
 export async function getPendingDeposit(): Promise<DepositOrder | null> {
   try {
-    const result = await apiRequest<BackendDepositOrder | null>("/deposits/pending");
-    console.log("[deposits-api] getPendingDeposit raw result:", result);
-    if (!result) return null;
-    const transformed = transformDeposit(result);
-    console.log("[deposits-api] getPendingDeposit transformed:", transformed);
-    return transformed;
+    const result = await apiRequest<BackendPendingResponse>("/deposits/pending");
+    // Check if result has pending order
+    if (!result || !result.hasPending || !result.order) return null;
+    return transformDeposit(result.order);
   } catch {
     return null;
   }

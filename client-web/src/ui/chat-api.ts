@@ -3,7 +3,8 @@
  * Handles chat with Operis API
  */
 
-import { apiRequest } from "./auth-api";
+import apiClient, { getAccessToken, getRefreshToken, setTokens, clearTokens, getErrorMessage } from "./api-client";
+import { API_CONFIG } from "../config";
 
 // Types matching Operis API response (Anthropic format)
 export interface ContentBlock {
@@ -68,38 +69,69 @@ export async function sendMessageSync(
   message: string,
   options?: ChatOptions,
 ): Promise<ChatResult> {
-  return apiRequest<ChatResult>("/chat", {
-    method: "POST",
-    body: JSON.stringify({
+  try {
+    const response = await apiClient.post<ChatResult>("/chat", {
       message,
       model: options?.model,
       systemPrompt: options?.systemPrompt,
       conversationId: options?.conversationId,
-    }),
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+}
+
+// Internal function to refresh tokens (for SSE streaming)
+async function refreshTokensForStream(): Promise<void> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    throw new Error("No refresh token");
+  }
+
+  const axios = (await import("axios")).default;
+  const response = await axios.post(`${API_CONFIG.baseUrl}/auth/refresh`, {
+    refreshToken,
   });
+
+  setTokens(response.data.accessToken, response.data.refreshToken);
 }
 
 // Send chat message with SSE streaming
+// Note: SSE streaming requires fetch, axios doesn't support it well
 export async function sendMessage(
   message: string,
   conversationId?: string,
   onDelta?: (text: string) => void,
   onDone?: (result: ChatResult) => void,
 ): Promise<ChatResult> {
-  const { API_CONFIG } = await import("../config");
-  const { getAccessToken } = await import("./auth-api");
-
   const url = `${API_CONFIG.baseUrl}/chat/stream`;
-  const token = getAccessToken();
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ message, conversationId }),
-  });
+  // Helper to make the streaming request
+  async function doStreamRequest(token: string | null): Promise<Response> {
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, conversationId }),
+    });
+  }
+
+  let response = await doStreamRequest(getAccessToken());
+
+  // Handle 401 - try to refresh token and retry once
+  if (response.status === 401 && getRefreshToken()) {
+    try {
+      await refreshTokensForStream();
+      response = await doStreamRequest(getAccessToken());
+    } catch {
+      clearTokens();
+      window.dispatchEvent(new CustomEvent("auth:session-expired"));
+      throw new Error("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -203,7 +235,12 @@ export async function sendMessage(
 
 // Get token balance
 export async function getChatBalance(): Promise<{ balance: number }> {
-  return apiRequest<{ balance: number }>("/chat/balance");
+  try {
+    const response = await apiClient.get<{ balance: number }>("/chat/balance");
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 // Conversation types
@@ -223,24 +260,40 @@ export interface HistoryMessage {
 
 // Get all conversations
 export async function getConversations(): Promise<{ conversations: Conversation[] }> {
-  return apiRequest<{ conversations: Conversation[] }>("/chat/conversations");
+  try {
+    const response = await apiClient.get<{ conversations: Conversation[] }>("/chat/conversations");
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 // Get conversation history
 export async function getConversationHistory(conversationId: string): Promise<{ messages: HistoryMessage[] }> {
-  return apiRequest<{ messages: HistoryMessage[] }>(`/chat/conversations/${conversationId}`);
+  try {
+    const response = await apiClient.get<{ messages: HistoryMessage[] }>(`/chat/conversations/${conversationId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 // Start new conversation
 export async function newConversation(): Promise<{ conversationId: string }> {
-  return apiRequest<{ conversationId: string }>("/chat/conversations/new", {
-    method: "POST",
-  });
+  try {
+    const response = await apiClient.post<{ conversationId: string }>("/chat/conversations/new");
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }
 
 // Delete conversation
 export async function deleteConversation(conversationId: string): Promise<{ success: boolean }> {
-  return apiRequest<{ success: boolean }>(`/chat/conversations/${conversationId}`, {
-    method: "DELETE",
-  });
+  try {
+    const response = await apiClient.delete<{ success: boolean }>(`/chat/conversations/${conversationId}`);
+    return response.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
 }

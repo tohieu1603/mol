@@ -33,6 +33,7 @@ export interface ChatProps {
   onDraftChange: (value: string) => void;
   onSend: () => void;
   onLoginClick: () => void;
+  onScroll?: (e: Event) => void;
 }
 
 function formatTime(timestamp?: string | Date): string {
@@ -100,6 +101,7 @@ export function renderChat(props: ChatProps) {
     onDraftChange,
     onSend,
     onLoginClick,
+    onScroll,
   } = props;
   const isEmpty = messages.length === 0;
   const displayName = username || "Bạn";
@@ -396,6 +398,7 @@ export function renderChat(props: ChatProps) {
         min-height: 0;
       }
       .gc-messages {
+        position: relative;
         height: 100%;
         overflow-y: auto;
         padding: 24px;
@@ -440,6 +443,13 @@ export function renderChat(props: ChatProps) {
         align-self: flex-start;
       }
 
+      /* Dynamic spacer - height controlled by JS */
+      .gc-scroll-spacer {
+        flex-shrink: 0;
+        height: 0;
+        transition: height 0.15s ease-out;
+      }
+
       .gc-avatar {
         width: 36px;
         height: 36px;
@@ -460,6 +470,32 @@ export function renderChat(props: ChatProps) {
           #9b72cb 50%,
           #d96570 100%
         );
+        position: relative;
+      }
+      /* Spinning border when loading */
+      .gc-avatar--assistant.gc-avatar--loading::before {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        padding: 3px;
+        background: conic-gradient(
+          from 0deg,
+          #4285f4,
+          #9b72cb,
+          #d96570,
+          #4285f4
+        );
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        animation: gc-avatar-spin 1.5s linear infinite;
+      }
+      @keyframes gc-avatar-spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
       .gc-avatar svg {
         width: 20px;
@@ -540,11 +576,64 @@ export function renderChat(props: ChatProps) {
         opacity: 0.8;
       }
 
+      /* Loading spinner - Gemini style */
+      .gc-loading-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px 0;
+      }
+      .gc-loading-spinner {
+        width: 32px;
+        height: 32px;
+        animation: gc-spin 1.5s linear infinite;
+      }
+      .gc-loading-spinner svg {
+        width: 100%;
+        height: 100%;
+        stroke: none;
+        fill: url(#gc-gradient);
+      }
+      @keyframes gc-spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Streaming indicator next to name */
+      .gc-streaming-indicator {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 8px;
+      }
+      .gc-streaming-indicator svg {
+        width: 16px;
+        height: 16px;
+        animation: gc-pulse 1.2s ease-in-out infinite;
+        stroke: none;
+        fill: var(--accent);
+      }
+      @keyframes gc-pulse {
+        0%, 100% { opacity: 0.4; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.1); }
+      }
+
       .gc-typing {
         display: flex;
         align-items: center;
         gap: 5px;
         padding: 6px 0;
+      }
+      /* Inline typing dots after streaming text */
+      .gc-typing-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+      .gc-typing-inline .gc-typing-dot {
+        width: 5px;
+        height: 5px;
       }
       .gc-typing-dot {
         width: 6px;
@@ -570,15 +659,19 @@ export function renderChat(props: ChatProps) {
         word-break: break-word;
       }
 
-      /* Static cursor */
+      /* Blinking cursor */
       .gc-cursor {
         display: inline-block;
         width: 2px;
         height: 1em;
+        animation: gc-blink 1s step-end infinite;
         background: var(--text);
         margin-left: 1px;
         vertical-align: text-bottom;
-        opacity: 0.6;
+      }
+      @keyframes gc-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
       }
 
       /* Bottom Input - fixed at bottom */
@@ -795,7 +888,7 @@ export function renderChat(props: ChatProps) {
           : html`
               <!-- Chat Messages -->
               <div class="gc-messages-container">
-                <div class="gc-messages">
+                <div class="gc-messages" @scroll=${onScroll}>
                   ${messages.map(
                     (msg) => html`
                       <div class="gc-message gc-message--${msg.role}">
@@ -829,7 +922,7 @@ export function renderChat(props: ChatProps) {
                   ${sending
                     ? html`
                         <div class="gc-message gc-message--assistant">
-                          <div class="gc-avatar gc-avatar--assistant">
+                          <div class="gc-avatar gc-avatar--assistant gc-avatar--loading">
                             ${icons.sparkles}
                           </div>
                           <div class="gc-content gc-assistant-content">
@@ -838,7 +931,7 @@ export function renderChat(props: ChatProps) {
                             </div>
                             <div class="gc-bubble">
                               ${streamingText
-                                ? html`<span class="gc-stream-text">${renderMarkdown(streamingText)}</span><span class="gc-cursor"></span>`
+                                ? html`<span class="gc-stream-text">${renderMarkdown(streamingText)}</span><span class="gc-typing-inline"><span class="gc-typing-dot"></span><span class="gc-typing-dot"></span><span class="gc-typing-dot"></span></span>`
                                 : html`
                                     <div class="gc-typing">
                                       <span class="gc-typing-dot"></span>
@@ -851,6 +944,8 @@ export function renderChat(props: ChatProps) {
                         </div>
                       `
                     : nothing}
+                  <!-- Spacer to allow scrolling user message to top -->
+                  <div class="gc-scroll-spacer"></div>
                 </div>
               </div>
 
